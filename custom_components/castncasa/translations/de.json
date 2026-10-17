@@ -1,0 +1,48 @@
+{
+  "title": "CastnCasa",
+  "config": {
+    "step": {
+      "user": {
+        "title": "CastnCasa einrichten",
+        "description": "Richtet CastnCasa in Home Assistant ein. Neue Bewohner werden anschließend direkt über die Integration gekoppelt."
+      }
+    },
+    "abort": {
+      "already_configured": "CastnCasa ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "CastnCasa verwalten",
+        "description": "Bewohner und gekoppelte CastnCasa-Apps verwalten.",
+        "menu_options": {
+          "pair_resident": "Neuen Bewohner koppeln",
+          "heat_settings": "Heat-Einstellungen"
+        },
+        "menu_option_descriptions": {
+          "pair_resident": "Öffnet die Koppelseite direkt in der CastnCasa-Integration und erzeugt einen einmaligen QR-Code.",
+          "heat_settings": "Schwellwerte für die Heizungs-Prognose und Wiederaufheiz-Empfehlung."
+        }
+      },
+      "pair_resident": {
+        "title": "Neuen Bewohner koppeln",
+        "description": "Scanne den QR-Code direkt hier mit **CastnCasa → Einstellungen → Home Assistant → Mit Home Assistant verbinden**.\n\n![CastnCasa QR-Code]({pairing_qr_url})\n\nFalls du den QR-Code lieber groß öffnen möchtest: [Pairing-Seite öffnen]({pairing_url}).\n\nDer QR-Code ist einmalig und **5 Minuten gültig**."
+      },
+      "heat_settings": {
+        "title": "CastnCasa Heat 1.0",
+        "description": "CastnCasa Heat liefert nur Empfehlungen. Reale Anwesenheit in Home Assistant hat immer Vorrang.",
+        "data": {
+          "heat_min_empty_minutes": "Mindest-Leerphase (Minuten)",
+          "heat_reheat_lead_minutes": "Wiederaufheiz-Vorlauf (Minuten)",
+          "heat_comfort_buffer_minutes": "Komfortpuffer (Minuten)"
+        },
+        "data_description": {
+          "heat_min_empty_minutes": "Erst ab dieser geplanten Leerphase wird Absenkung empfohlen.",
+          "heat_reheat_lead_minutes": "Feste Vorlaufzeit vor der erwarteten Heimkehr; lernende Vorlaufzeit folgt später mit Heat AI.",
+          "heat_comfort_buffer_minutes": "Zusätzlicher Sicherheits-/Komfortpuffer vor der erwarteten Heimkehr."
+        }
+      }
+    }
+  }
+}
