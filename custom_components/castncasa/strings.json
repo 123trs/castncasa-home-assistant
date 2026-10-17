@@ -1,0 +1,48 @@
+{
+  "title": "CastnCasa",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up CastnCasa",
+        "description": "Sets up CastnCasa in Home Assistant. New residents can then be paired directly from the integration."
+      }
+    },
+    "abort": {
+      "already_configured": "CastnCasa is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage CastnCasa",
+        "description": "Manage residents and paired CastnCasa apps.",
+        "menu_options": {
+          "pair_resident": "Pair a new resident",
+          "heat_settings": "Heat settings"
+        },
+        "menu_option_descriptions": {
+          "pair_resident": "Opens the pairing page directly from the CastnCasa integration and creates a one-time QR code.",
+          "heat_settings": "Thresholds for heating forecast and reheating recommendations."
+        }
+      },
+      "pair_resident": {
+        "title": "Pair a new resident",
+        "description": "Scan the QR code directly here with **CastnCasa → Settings → Home Assistant → Connect to Home Assistant**.\n\n![CastnCasa QR code]({pairing_qr_url})\n\nTo open it larger, use the [pairing page]({pairing_url}).\n\nThe QR code can only be used once and is valid for **5 minutes**."
+      },
+      "heat_settings": {
+        "title": "CastnCasa Heat 1.0",
+        "description": "CastnCasa Heat only publishes recommendations. Real presence in Home Assistant always has priority.",
+        "data": {
+          "heat_min_empty_minutes": "Minimum empty period (minutes)",
+          "heat_reheat_lead_minutes": "Reheat lead time (minutes)",
+          "heat_comfort_buffer_minutes": "Comfort buffer (minutes)"
+        },
+        "data_description": {
+          "heat_min_empty_minutes": "Reduction is only recommended for empty periods at least this long.",
+          "heat_reheat_lead_minutes": "Fixed lead time before expected return; adaptive lead time will follow with Heat AI.",
+          "heat_comfort_buffer_minutes": "Additional safety/comfort buffer before the expected return."
+        }
+      }
+    }
+  }
+}
