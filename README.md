@@ -20,6 +20,12 @@ CastnCasa Heat is **forecast-only**: it recommends `komfort`, `reduziert`, or `w
 
 The pairing code is single-use and expires after five minutes.
 
+### German buyer setup
+
+A step-by-step German setup guide for customers is available here:
+
+[CastnCasa – Käufer-Setup für Home Assistant](docs/KAUFER_SETUP_DE.md)
+
 ## Updates
 
 Future integration updates can be installed through HACS. Existing entity unique IDs are treated as a compatibility contract for the 1.x series.
@@ -30,6 +36,6 @@ Pairing and schedule synchronization happen directly between the CastnCasa app a
 
 ## Support
 
-Website: https://wattzahls.de/
+Product and setup website: https://wattzahls.de/castncasa/
 
 Issues: https://github.com/123trs/castncasa-home-assistant/issues
