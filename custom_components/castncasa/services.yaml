@@ -1,0 +1,31 @@
+create_pairing:
+  name: Pair new CastnCasa device
+  description: Creates a one-time five-minute pairing QR code and returns the pairing page URL.
+  fields:
+    base_url:
+      name: Home Assistant URL
+      description: Optional URL to embed in the QR code. Leave empty to use the Home Assistant instance URL.
+      example: "https://home.example.com"
+      selector:
+        text:
+    prefer_external:
+      name: Prefer external URL
+      description: Prefer the configured external Home Assistant URL when no URL is supplied.
+      default: false
+      selector:
+        boolean:
+
+list_devices:
+  name: List paired devices
+  description: Returns all CastnCasa devices paired with this Home Assistant instance.
+
+revoke_device:
+  name: Revoke paired device
+  description: Revokes one paired CastnCasa device immediately.
+  fields:
+    device_id:
+      name: Device ID
+      description: The CastnCasa device ID returned by list_devices.
+      required: true
+      selector:
+        text:
