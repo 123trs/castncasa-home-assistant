@@ -148,6 +148,7 @@ class CastnCasaPairingManager:
         session = self._pairings.get(pairing_id)
         if session is None:
             raise PairingError("pairing_not_found")
+
         expected_proof = pairing_proof(
             session.secret,
             pairing_id,
