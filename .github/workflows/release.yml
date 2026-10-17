@@ -1,0 +1,29 @@
+name: Release CastnCasa Home Assistant 1.0.1
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub release v1.0.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.1 already exists."
+            exit 0
+          fi
+          gh release create v1.0.1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "CastnCasa Home Assistant 1.0.1" \
+            --notes "Initial public release of the CastnCasa Home Assistant integration. Includes local pairing, resident and schedule synchronization, calendar entities, absence forecasting, and CastnCasa Heat recommendation sensors. Validated with Hassfest and the HACS Action."
