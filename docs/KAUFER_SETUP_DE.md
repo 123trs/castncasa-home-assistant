@@ -6,7 +6,7 @@ Diese Anleitung führt von der Installation bis zur ersten synchronisierten Pers
 
 - CastnCasa für Android
 - Home Assistant mit HACS
-- Smartphone und Home Assistant müssen sich gegenseitig über die von Home Assistant verwendete URL erreichen können
+- Smartphone und Home Assistant müssen sich für Kopplung und Synchronisierung entweder über die externe Home-Assistant-Adresse oder im Heimnetz erreichen können
 
 ## 1. CastnCasa-Integration über HACS installieren
 
@@ -54,20 +54,34 @@ In der CastnCasa-App unter **Einstellungen**:
 
 Änderungen am Kalender werden anschließend automatisch mit Home Assistant synchronisiert.
 
-## 5. Was Home Assistant erhält
+## 5. Synchronisierung und Anwesenheit
 
-Ohne gekoppelte Bewohner stellt CastnCasa 16 Basis-Entitäten bereit. Jeder gekoppelte Bewohner ergänzt 7 weitere Entitäten.
+CastnCasa 1.0.2 unterstützt zwei Synchronisationswege:
+
+- **Home Assistant extern erreichbar:** Änderungen werden sofort über die externe Home-Assistant-Adresse synchronisiert.
+- **Home Assistant nur lokal erreichbar:** Änderungen bleiben auf dem Smartphone zwischengespeichert und werden automatisch synchronisiert, sobald das Smartphone wieder im Heimnetz ist.
+
+Die Präsenzerkennung arbeitet unabhängig vom Kalender-Sync. Zusätzlich kann Home Assistant eigene `person`- bzw. `device_tracker`-Signale verwenden. Bestätigte reale Anwesenheit hat immer Vorrang vor der Dienstplan-Prognose.
+
+## 6. Was Home Assistant erhält
+
+Ohne gekoppelte Bewohner stellt CastnCasa 16 Basis-Entitäten bereit. Jeder gekoppelte Bewohner ergänzt 10 weitere Entitäten.
 
 Dazu gehören unter anderem:
 
 - aktuell geplante Abwesenheit des Haushalts;
+- tatsächliche Anwesenheit je Bewohner;
+- `last_seen` je Bewohner;
+- geplante Abwesenheit je Bewohner;
+- nächste Abfahrt;
+- erwartete Heimkehr;
+- Abweichung vom Plan;
 - nächster Beginn und Ende einer geplanten Leerphase;
-- erwartete nächste Heimkehr;
 - Wochenend- und Feiertagskalender;
 - Bewohner-Kalender und Monatskalender;
 - CastnCasa-Heat-Prognose mit Empfehlung `komfort`, `reduziert` oder `wiederaufheizen`.
 
-## 6. CastnCasa Heat 1.0
+## 7. CastnCasa Heat 1.0
 
 Unter **CastnCasa → Konfigurieren → Heat-Einstellungen** lassen sich drei Werte einstellen:
 
@@ -79,11 +93,11 @@ CastnCasa Heat steuert die Heizung nicht selbst. Es stellt Prognosen und Empfehl
 
 **Wichtig:** Reale Anwesenheit in Home Assistant hat immer Vorrang vor einer Dienstplan-Prognose.
 
-## 7. Zweiten oder weiteren Bewohner koppeln
+## 8. Zweiten oder weiteren Bewohner koppeln
 
 Den Kopplungsvorgang einfach erneut über **CastnCasa → Konfigurieren → Neuen Bewohner koppeln** starten. Jeder Bewohner erhält seine eigenen Entitäten und Kalender.
 
-## 8. Verbindung prüfen oder Bewohner abmelden
+## 9. Verbindung prüfen oder Bewohner abmelden
 
 In der Android-App unter **Einstellungen → Home Assistant** kann die Verbindung geprüft werden. Ein Bewohner kann dort auch sauber von Home Assistant abgemeldet werden.
 
@@ -93,9 +107,15 @@ In der Android-App unter **Einstellungen → Home Assistant** kann die Verbindun
 
 In Home Assistant erneut **Neuen Bewohner koppeln** öffnen. Dadurch wird ein neuer einmaliger QR-Code erzeugt.
 
-### Smartphone erreicht Home Assistant nicht
+### Smartphone erreicht Home Assistant unterwegs nicht
 
-Prüfen, ob die im Home Assistant verwendete interne oder externe URL vom Smartphone erreichbar ist. Bei externer Nutzung muss die Home-Assistant-URL auch außerhalb des Heimnetzes funktionieren.
+Das ist bei einer rein lokalen Home-Assistant-Installation zulässig. CastnCasa speichert Änderungen lokal zwischen und synchronisiert sie automatisch, sobald das Smartphone wieder im Heimnetz ist.
+
+Wenn Home Assistant extern erreichbar sein soll, prüfen, ob die externe Home-Assistant-Adresse auch außerhalb des Heimnetzes funktioniert.
+
+### Änderungen wurden noch nicht synchronisiert
+
+Bei einer nur lokal erreichbaren Home-Assistant-Instanz zuerst prüfen, ob das Smartphone wieder mit dem Heimnetz verbunden ist. Die Synchronisierung wird dann automatisch nachgeholt.
 
 ### Kalender ist noch leer
 
@@ -107,7 +127,7 @@ HACS öffnen und verfügbare CastnCasa-Updates installieren. Danach Home Assista
 
 ## Datenschutz
 
-Die Kopplung und Synchronisierung erfolgen direkt zwischen der CastnCasa-App und der Home-Assistant-Instanz des Anwenders. Der für die Verbindung erzeugte Gerätetoken wird auf Android geschützt gespeichert.
+Die Kopplung, Synchronisierung und App-Präsenzsignale erfolgen direkt zwischen der CastnCasa-App und der Home-Assistant-Instanz des Anwenders. Der für die Verbindung erzeugte Gerätetoken wird auf Android geschützt gespeichert. Für Kalender- und Anwesenheitsdaten ist kein CastnCasa-Cloud-Dienst erforderlich.
 
 Support und Produktseite: https://wattzahls.de/castncasa/
 
