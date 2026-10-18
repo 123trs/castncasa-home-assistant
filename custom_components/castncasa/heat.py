@@ -62,12 +62,14 @@ def calculate_heat_forecast(
     settings: HeatSettings,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Calculate heating recommendations from the household forecast."""
+    """Calculate heating recommendations with actual presence as top priority."""
     generated_at = _parse_dt(household.get("generated_at"))
     now = now or generated_at or datetime.now().astimezone()
     empty_from = _parse_dt(household.get("next_house_empty_from"))
     empty_until = _parse_dt(household.get("next_house_empty_until"))
-    current_empty = bool(household.get("planned_house_empty"))
+    planned_empty = bool(household.get("planned_house_empty"))
+    current_empty = bool(household.get("effective_house_empty", planned_empty))
+    confirmed_home = bool(household.get("confirmed_home"))
 
     duration_minutes: int | None = None
     if empty_from is not None and empty_until is not None and empty_until > empty_from:
@@ -88,7 +90,7 @@ def calculate_heat_forecast(
         seconds = max(0.0, (empty_until - now).total_seconds())
         time_until_home_minutes = int(math.ceil(seconds / 60))
 
-    if not current_empty or not reduction_window_usable:
+    if confirmed_home or not current_empty or not reduction_window_usable:
         recommended_mode = "komfort"
     elif reheat_from is not None and now >= reheat_from:
         recommended_mode = "wiederaufheizen"
@@ -113,5 +115,7 @@ def calculate_heat_forecast(
         "comfort_buffer_minutes": settings.comfort_buffer_minutes,
         "next_house_empty_from": household.get("next_house_empty_from"),
         "next_house_empty_until": household.get("next_house_empty_until"),
-        "priority": "forecast_only",
+        "confirmed_home": confirmed_home,
+        "confirmed_home_names": household.get("confirmed_home_names", []),
+        "priority": household.get("priority", "forecast_only"),
     }
