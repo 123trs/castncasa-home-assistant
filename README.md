@@ -1,5 +1,7 @@
 # CastnCasa for Home Assistant
 
+<p align="center"><img src="custom_components/castncasa/brand/logo.png" alt="CastnCasa" width="512"></p>
+
 CastnCasa brings household shift and absence forecasts from the CastnCasa Android app into Home Assistant and combines them with real resident presence.
 
 ## What the integration provides
