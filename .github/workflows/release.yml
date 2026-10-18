@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.3
+name: Release CastnCasa Home Assistant 1.0.4
 
 on:
   push:
@@ -14,16 +14,16 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Create GitHub release v1.0.3
+      - name: Create GitHub release v1.0.4
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.3 already exists."
+          if gh release view v1.0.4 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.4 already exists."
             exit 0
           fi
-          gh release create v1.0.3 \
+          gh release create v1.0.4 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "CastnCasa Home Assistant 1.0.3" \
-            --notes "Aligns release metadata and customer documentation with the shipped dual-sync and independent-presence contract. Documents eleven resident-specific entities, automatic remote/local Home Assistant synchronization, and actual-presence priority for CastnCasa Heat. No breaking entity-ID changes."
+            --title "CastnCasa Home Assistant 1.0.4" \
+            --notes "Branding fix: replaces the Home Assistant integration logo with the official CastnCasa wordmark and updates repository branding. No entity, pairing, synchronization, presence or API behavior changes."
