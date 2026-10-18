@@ -8,7 +8,7 @@
   "dependencies": [
     "http"
   ],
-  "documentation": "https://wattzahls.de/",
+  "documentation": "https://wattzahls.de/castncasa/",
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/123trs/castncasa-home-assistant/issues",
