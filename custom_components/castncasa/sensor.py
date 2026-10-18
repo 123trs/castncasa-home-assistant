@@ -1,4 +1,4 @@
-"""Sensors for CastnCasa household forecasting."""
+"""Sensors for CastnCasa household forecasting and presence."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def _resident_entities(coordinator, instance_id: str, resident: dict):
             instance_id,
             resident,
             "next_planned_absence",
-            "Nächste geplante Abwesenheit",
+            "Nächste Abfahrt",
         ),
         ResidentTimestampSensor(
             coordinator,
@@ -56,6 +56,20 @@ def _resident_entities(coordinator, instance_id: str, resident: dict):
             resident,
             "expected_home",
             "Erwartete Heimkehr",
+        ),
+        ResidentTimestampSensor(
+            coordinator,
+            instance_id,
+            resident,
+            "last_seen",
+            "Zuletzt gesehen",
+        ),
+        ResidentTextSensor(
+            coordinator,
+            instance_id,
+            resident,
+            "plan_deviation",
+            "Planabweichung",
         ),
     ]
 
@@ -173,6 +187,33 @@ class ResidentTimestampSensor(CastnCasaResidentEntity, SensorEntity):
         return _parse_dt((self.resident or {}).get(self._key))
 
 
+class ResidentTextSensor(CastnCasaResidentEntity, SensorEntity):
+    """Resident text state derived from presence and forecast."""
+
+    _attr_icon = "mdi:calendar-alert"
+
+    def __init__(self, coordinator, instance_id: str, resident: dict, key: str, name: str) -> None:
+        super().__init__(coordinator, instance_id, resident)
+        self._key = key
+        self._attr_name = name
+        self._attr_unique_id = f"{instance_id}_resident_{self.resident_id}_{key}"
+
+    @property
+    def native_value(self) -> str:
+        return str((self.resident or {}).get(self._key) or "unbekannt")
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        resident = self.resident or {}
+        return {
+            "presence": resident.get("presence", "unknown"),
+            "presence_source": resident.get("presence_source"),
+            "planned_away": resident.get("planned_away"),
+            "next_departure": resident.get("next_departure"),
+            "expected_home": resident.get("expected_home"),
+        }
+
+
 class CastnCasaHeatSensor(CastnCasaHeatEntity, SensorEntity):
     """Base entity for CastnCasa Heat recommendation sensors."""
 
@@ -194,6 +235,7 @@ class CastnCasaHeatSensor(CastnCasaHeatEntity, SensorEntity):
             "comfort_buffer_minutes": heat["comfort_buffer_minutes"],
             "next_house_empty_from": heat["next_house_empty_from"],
             "next_house_empty_until": heat["next_house_empty_until"],
+            "confirmed_home": heat.get("confirmed_home", False),
             "priority": heat["priority"],
         }
 
@@ -244,7 +286,7 @@ class HeatModeSensor(CastnCasaHeatSensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         attrs = super().extra_state_attributes
         attrs["reduction_window_usable"] = self.heat["reduction_window_usable"]
-        attrs["note"] = "Empfehlung aus Dienstplan-Prognose. Reale Anwesenheit in Home Assistant hat immer Vorrang."
+        attrs["note"] = "Bestätigte Anwesenheit hat immer Vorrang vor der Dienstplan-Prognose."
         return attrs
 
 

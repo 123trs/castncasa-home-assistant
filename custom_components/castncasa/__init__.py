@@ -20,6 +20,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     DATA_MANAGER,
+    DATA_PRESENCE,
     DATA_SCHEDULE,
     DOMAIN,
     PLATFORMS,
@@ -37,6 +38,7 @@ from .http import (
     CastnCasaStatusView,
 )
 from .pairing import CastnCasaPairingManager
+from .presence import CastnCasaPresenceStore, CastnCasaPresenceView
 from .schedule import CastnCasaScheduleStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ class CastnCasaRuntimeData:
 
     coordinator: CastnCasaCoordinator
     schedule: CastnCasaScheduleStore
+    presence: CastnCasaPresenceStore
 
 
 type CastnCasaConfigEntry = ConfigEntry[CastnCasaRuntimeData]
@@ -72,10 +75,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     manager = CastnCasaPairingManager(hass)
     schedule = CastnCasaScheduleStore(hass)
+    presence = CastnCasaPresenceStore(hass)
     await manager.async_load()
     await schedule.async_load()
+    await presence.async_load()
+    presence.async_start()
     domain_data[DATA_MANAGER] = manager
     domain_data[DATA_SCHEDULE] = schedule
+    domain_data[DATA_PRESENCE] = presence
 
     hass.http.register_view(CastnCasaPairingPageView(manager))
     hass.http.register_view(CastnCasaPairingQrView(manager))
@@ -83,6 +90,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.http.register_view(CastnCasaStatusView(manager))
     hass.http.register_view(CastnCasaScheduleView(manager, schedule))
     hass.http.register_view(CastnCasaStateView(manager, schedule))
+    hass.http.register_view(CastnCasaPresenceView(manager, presence))
 
     async def async_create_pairing(call: ServiceCall) -> ServiceResponse:
         base_url = str(call.data.get("base_url") or "").strip().rstrip("/")
@@ -108,11 +116,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def async_revoke_device(call: ServiceCall) -> ServiceResponse:
         device_id = str(call.data["device_id"])
         resident_removed = await schedule.async_remove_resident(device_id)
+        presence_removed = await presence.async_remove(device_id)
         revoked = await manager.revoke_device(device_id)
         return {
             "device_id": device_id,
             "revoked": revoked,
             "resident_removed": resident_removed,
+            "presence_removed": presence_removed,
         }
 
     async_register_admin_service(
@@ -148,13 +158,7 @@ async def _async_reload_entry(hass: HomeAssistant, entry: CastnCasaConfigEntry) 
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: CastnCasaConfigEntry) -> bool:
-    """Set up CastnCasa native entities.
-
-    CastnCasa is a single-household integration. Older development builds could
-    create more than one config entry before the flow gained a fixed unique ID.
-    Keep the oldest entry canonical so legacy duplicates cannot create a second
-    set of entities or register competing coordinators.
-    """
+    """Set up CastnCasa native entities."""
     entries = hass.config_entries.async_entries(DOMAIN)
     canonical = min(entries, key=lambda item: (item.created_at, item.entry_id))
     if canonical.entry_id != entry.entry_id:
@@ -171,10 +175,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: CastnCasaConfigEntry) ->
         hass.config_entries.async_update_entry(entry, unique_id=DOMAIN)
 
     schedule: CastnCasaScheduleStore = hass.data[DOMAIN][DATA_SCHEDULE]
-    coordinator = CastnCasaCoordinator(hass, entry, schedule)
+    presence: CastnCasaPresenceStore = hass.data[DOMAIN][DATA_PRESENCE]
+    coordinator = CastnCasaCoordinator(hass, entry, schedule, presence)
     await coordinator.async_config_entry_first_refresh()
-    entry.runtime_data = CastnCasaRuntimeData(coordinator=coordinator, schedule=schedule)
-    entry.async_on_unload(schedule.async_add_listener(coordinator.async_schedule_updated))
+    entry.runtime_data = CastnCasaRuntimeData(
+        coordinator=coordinator,
+        schedule=schedule,
+        presence=presence,
+    )
+    entry.async_on_unload(schedule.async_add_listener(coordinator.async_source_updated))
+    entry.async_on_unload(presence.async_add_listener(coordinator.async_source_updated))
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
     def _remove_departed_resident_devices() -> None:
