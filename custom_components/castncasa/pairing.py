@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 import hashlib
@@ -10,7 +11,7 @@ import secrets
 from typing import Any
 from urllib.parse import urlencode
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 
 from .const import (
@@ -92,6 +93,7 @@ class CastnCasaPairingManager:
         self._devices: dict[str, dict[str, Any]] = {}
         self._pairings: dict[str, PairingSession] = {}
         self._nonces: dict[str, dict[str, datetime]] = {}
+        self._listeners: set[Callable[[], None]] = set()
 
     async def async_load(self) -> None:
         data = await self._store.async_load() or {}
@@ -101,6 +103,52 @@ class CastnCasaPairingManager:
 
     async def _async_save(self) -> None:
         await self._store.async_save({"devices": self._devices})
+
+    @callback
+    def async_add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        self._listeners.add(listener)
+
+        @callback
+        def remove_listener() -> None:
+            self._listeners.discard(listener)
+
+        return remove_listener
+
+    @callback
+    def _notify(self) -> None:
+        for listener in tuple(self._listeners):
+            listener()
+
+    def device_metadata(self, device_id: str) -> dict[str, Any]:
+        record = self._devices.get(device_id, {})
+        return {
+            "device_id": device_id,
+            "device_name": record.get("device_name", "CastnCasa"),
+            "app_version": record.get("app_version", ""),
+            "created_at": record.get("created_at"),
+            "last_seen": record.get("last_seen"),
+            "presence_state": record.get("presence_state", "unknown"),
+            "presence_source": record.get("presence_source"),
+            "presence_updated_at": record.get("presence_updated_at"),
+        }
+
+    async def async_update_presence(
+        self, device_id: str, state: str, source: str
+    ) -> dict[str, Any]:
+        record = self._devices.get(device_id)
+        if record is None:
+            raise DeviceAuthError("unknown_device")
+        if state not in {"home", "away", "unknown"}:
+            raise ValueError("invalid_presence_state")
+        source = source.strip()[:32] or "app"
+        now = _utcnow().isoformat()
+        record["presence_state"] = state
+        record["presence_source"] = source
+        record["presence_updated_at"] = now
+        record["last_seen"] = now
+        await self._async_save()
+        self._notify()
+        return self.device_metadata(device_id)
 
     def _cleanup_pairings(self) -> None:
         now = _utcnow()
@@ -191,6 +239,7 @@ class CastnCasaPairingManager:
         }
         await self._async_save()
         self._pairings.pop(pairing_id, None)
+        self._notify()
 
         return {
             "encrypted_token": encrypted_token,
@@ -208,18 +257,13 @@ class CastnCasaPairingManager:
             return False
         self._nonces.pop(device_id, None)
         await self._async_save()
+        self._notify()
         return True
 
     def list_devices(self) -> list[dict[str, Any]]:
         return [
-            {
-                "device_id": item.get("device_id", device_id),
-                "device_name": item.get("device_name", "CastnCasa"),
-                "app_version": item.get("app_version", ""),
-                "created_at": item.get("created_at"),
-                "last_seen": item.get("last_seen"),
-            }
-            for device_id, item in sorted(self._devices.items())
+            self.device_metadata(device_id)
+            for device_id in sorted(self._devices)
         ]
 
     async def authenticate_api_request(
@@ -274,6 +318,7 @@ class CastnCasaPairingManager:
         nonces[nonce] = _utcnow()
         record["last_seen"] = _utcnow().isoformat()
         await self._async_save()
+        self._notify()
         return record
 
     def _cleanup_nonces(self, device_id: str) -> None:
