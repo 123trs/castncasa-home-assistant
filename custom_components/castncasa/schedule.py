@@ -17,6 +17,7 @@ from .holidays import FEDERAL_STATES, special_days_between
 STORE_VERSION = 1
 STORE_KEY = "castncasa.schedule"
 DEFAULT_COLOR = "#4263eb"
+RESIDENT_COLOR_PALETTE = ("#23733E", "#4263EB", "#E67700", "#C92A2A", "#0B7285", "#C2255C")
 CODE_RE = re.compile(r"^[A-Za-zÄÖÜäöü0-9_-]{1,8}$")
 COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 KINDS = {"work", "free", "leave", "sick", "other"}
@@ -429,6 +430,26 @@ class CastnCasaScheduleStore:
             if current and supplied_revision != int(current.get("revision", 0)):
                 raise ScheduleConflictError("revision_conflict")
 
+        color_auto = bool(resident_raw.get("color_auto", False))
+        if color_auto:
+            used_colors = {
+                str(other.get("color", "")).upper()
+                for other_id, other in self._data["residents"].items()
+                if other_id != device_id and bool(other.get("active", True))
+            }
+            current_color = str(current.get("color", "")).strip()
+            if COLOR_RE.fullmatch(current_color) and current_color.upper() not in used_colors:
+                color = current_color
+            elif color.upper() in used_colors:
+                color = next(
+                    (
+                        candidate
+                        for candidate in RESIDENT_COLOR_PALETTE
+                        if candidate.upper() not in used_colors
+                    ),
+                    color,
+                )
+
         revision = int(current.get("revision", 0)) + 1
         now = datetime.now(self.timezone).isoformat(timespec="seconds")
         resident = {
@@ -449,6 +470,23 @@ class CastnCasaScheduleStore:
         await self._async_save()
         self._notify()
         return self.resident_payload(device_id)
+
+    async def async_set_resident_color(self, device_id: str, color: str) -> bool:
+        """Set one resident color and notify all live HA entities."""
+        resident = self._data.get("residents", {}).get(device_id)
+        if resident is None:
+            return False
+        normalized = str(color).strip().upper()
+        if not COLOR_RE.fullmatch(normalized):
+            raise ScheduleValidationError("invalid_resident_color")
+        if str(resident.get("color", "")).upper() == normalized:
+            return True
+        resident["color"] = normalized
+        resident["revision"] = int(resident.get("revision", 0)) + 1
+        resident["updated_at"] = datetime.now(self.timezone).isoformat(timespec="seconds")
+        await self._async_save()
+        self._notify()
+        return True
 
     async def async_remove_resident(self, device_id: str) -> bool:
         """Remove one resident schedule and notify all live HA entities."""
