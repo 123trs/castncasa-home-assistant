@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.10
+name: Release CastnCasa Home Assistant 1.0.11
 
 on:
   push:
@@ -14,16 +14,16 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Create GitHub release v1.0.10
+      - name: Create GitHub release v1.0.11
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.10 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.10 already exists."
+          if gh release view v1.0.11 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.11 already exists."
             exit 0
           fi
-          gh release create v1.0.10 \
+          gh release create v1.0.11 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "CastnCasa Home Assistant 1.0.10" \
-            --notes "Full synchronization of the tested CastnCasa Home Assistant integration. Fixes the Heat sensor presence fields including actual_home_now and effective_presence_source, while preserving resident lifecycle cleanup, calendar-color synchronization, pairing, dual remote/local sync and updated translations."
+            --title "CastnCasa Home Assistant 1.0.11" \
+            --notes "Fixes resident removal from Home Assistant. Deleting a CastnCasa resident device now removes the resident schedule, revokes the app pairing and clears the resident entities, while household and Heat aggregate devices remain protected."
