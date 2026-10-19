@@ -28,6 +28,7 @@ from .const import (
     SERVICE_CREATE_PAIRING,
     SERVICE_LIST_DEVICES,
     SERVICE_REVOKE_DEVICE,
+    SERVICE_SET_RESIDENT_COLOR,
 )
 from .coordinator import CastnCasaCoordinator
 from .http import (
@@ -65,6 +66,12 @@ CREATE_PAIRING_SCHEMA = probatio.Schema(
     }
 )
 REVOKE_DEVICE_SCHEMA = probatio.Schema({probatio.Required("device_id"): cv.string})
+SET_RESIDENT_COLOR_SCHEMA = probatio.Schema(
+    {
+        probatio.Required("device_id"): cv.string,
+        probatio.Required("color"): cv.string,
+    }
+)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -119,6 +126,16 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "resident_removed": resident_removed,
         }
 
+    async def async_set_resident_color(call: ServiceCall) -> ServiceResponse:
+        device_id = str(call.data["device_id"])
+        color = str(call.data["color"])
+        updated = await schedule.async_set_resident_color(device_id, color)
+        return {
+            "device_id": device_id,
+            "color": color.upper(),
+            "updated": updated,
+        }
+
     async_register_admin_service(
         hass,
         DOMAIN,
@@ -141,6 +158,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         SERVICE_REVOKE_DEVICE,
         async_revoke_device,
         schema=REVOKE_DEVICE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_SET_RESIDENT_COLOR,
+        async_set_resident_color,
+        schema=SET_RESIDENT_COLOR_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     return True
