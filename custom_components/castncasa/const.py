@@ -3,11 +3,12 @@
 from homeassistant.const import Platform
 
 DOMAIN = "castncasa"
-INTEGRATION_VERSION = "1.0.7"
+INTEGRATION_VERSION = "1.0.8"
 DATA_MANAGER = "manager"
 DATA_SCHEDULE = "schedule"
-DATA_PRESENCE = "presence"
+DATA_COORDINATOR = "coordinator"
 
+CONF_PRESENCE_ENTITIES = "presence_entities"
 CONF_HEAT_MIN_EMPTY_MINUTES = "heat_min_empty_minutes"
 CONF_HEAT_REHEAT_LEAD_MINUTES = "heat_reheat_lead_minutes"
 CONF_HEAT_COMFORT_BUFFER_MINUTES = "heat_comfort_buffer_minutes"
@@ -23,6 +24,7 @@ PAIRING_TTL_SECONDS = 300
 PAIRING_MAX_ATTEMPTS = 5
 API_CLOCK_SKEW_SECONDS = 300
 API_NONCE_TTL_SECONDS = 600
+APP_PRESENCE_TTL_SECONDS = 900
 
 SERVICE_CREATE_PAIRING = "create_pairing"
 SERVICE_LIST_DEVICES = "list_devices"
@@ -33,7 +35,7 @@ PAIRING_QR_PATH = "/api/castncasa/pairing/{pairing_id}/qr.svg"
 PAIR_CLAIM_PATH = "/api/castncasa/v1/pair"
 STATUS_PATH = "/api/castncasa/v1/status"
 SCHEDULE_PATH = "/api/castncasa/v1/schedule"
-STATE_PATH = "/api/castncasa/v1/state"
 PRESENCE_PATH = "/api/castncasa/v1/presence"
+STATE_PATH = "/api/castncasa/v1/state"
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.CALENDAR]

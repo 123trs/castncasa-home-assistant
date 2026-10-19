@@ -117,9 +117,13 @@ async def async_setup_entry(
         ])
     async_add_entities(entities)
 
-    def _add_new_residents() -> None:
+    def _sync_residents() -> None:
+        current_residents = coordinator.data.get("residents", [])
+        current_ids = {str(resident["id"]) for resident in current_residents}
+        # A removed resident may later pair again with the same device ID.
+        known.intersection_update(current_ids)
         new_entities = []
-        for resident in coordinator.data.get("residents", []):
+        for resident in current_residents:
             resident_id = str(resident["id"])
             if resident_id not in known:
                 known.add(resident_id)
@@ -130,7 +134,7 @@ async def async_setup_entry(
         if new_entities:
             async_add_entities(new_entities)
 
-    entry.async_on_unload(coordinator.async_add_listener(_add_new_residents))
+    entry.async_on_unload(coordinator.async_add_listener(_sync_residents))
 
 
 class ResidentCalendar(CastnCasaResidentEntity, CalendarEntity):

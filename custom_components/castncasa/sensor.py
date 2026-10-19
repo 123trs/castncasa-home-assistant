@@ -1,4 +1,4 @@
-"""Sensors for CastnCasa household forecasting and presence."""
+"""Sensors for CastnCasa household forecasting."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def _resident_entities(coordinator, instance_id: str, resident: dict):
             instance_id,
             resident,
             "next_planned_absence",
-            "Nächste Abfahrt",
+            "Nächste geplante Abwesenheit",
         ),
         ResidentTimestampSensor(
             coordinator,
@@ -58,19 +58,12 @@ def _resident_entities(coordinator, instance_id: str, resident: dict):
             "Erwartete Heimkehr",
         ),
         ResidentTimestampSensor(
-            coordinator,
-            instance_id,
-            resident,
-            "last_seen",
-            "Zuletzt gesehen",
+            coordinator, instance_id, resident, "next_departure", "Nächste Abfahrt"
         ),
-        ResidentTextSensor(
-            coordinator,
-            instance_id,
-            resident,
-            "plan_deviation",
-            "Planabweichung",
+        ResidentTimestampSensor(
+            coordinator, instance_id, resident, "last_seen", "Zuletzt gesehen"
         ),
+        ResidentPlanDeviationSensor(coordinator, instance_id, resident),
     ]
 
 
@@ -107,9 +100,14 @@ async def async_setup_entry(
         entities.extend(_resident_entities(coordinator, instance_id, resident))
     async_add_entities(entities)
 
-    def _add_new_residents() -> None:
+    def _sync_residents() -> None:
+        current_residents = coordinator.data.get("residents", [])
+        current_ids = {str(resident["id"]) for resident in current_residents}
+        # Forget residents that were removed so the same device ID can be
+        # paired again later and all of its entities are recreated.
+        known.intersection_update(current_ids)
         new_entities = []
-        for resident in coordinator.data.get("residents", []):
+        for resident in current_residents:
             resident_id = str(resident["id"])
             if resident_id not in known:
                 known.add(resident_id)
@@ -117,7 +115,7 @@ async def async_setup_entry(
         if new_entities:
             async_add_entities(new_entities)
 
-    entry.async_on_unload(coordinator.async_add_listener(_add_new_residents))
+    entry.async_on_unload(coordinator.async_add_listener(_sync_residents))
 
 
 class HouseholdCountSensor(CastnCasaEntity, SensorEntity):
@@ -187,30 +185,31 @@ class ResidentTimestampSensor(CastnCasaResidentEntity, SensorEntity):
         return _parse_dt((self.resident or {}).get(self._key))
 
 
-class ResidentTextSensor(CastnCasaResidentEntity, SensorEntity):
-    """Resident text state derived from presence and forecast."""
+class ResidentPlanDeviationSensor(CastnCasaResidentEntity, SensorEntity):
+    """Difference between actual presence and the planned schedule."""
 
+    _attr_name = "Abweichung vom Plan"
     _attr_icon = "mdi:calendar-alert"
 
-    def __init__(self, coordinator, instance_id: str, resident: dict, key: str, name: str) -> None:
+    def __init__(self, coordinator, instance_id: str, resident: dict) -> None:
         super().__init__(coordinator, instance_id, resident)
-        self._key = key
-        self._attr_name = name
-        self._attr_unique_id = f"{instance_id}_resident_{self.resident_id}_{key}"
+        self._attr_unique_id = f"{instance_id}_resident_{self.resident_id}_plan_deviation"
 
     @property
     def native_value(self) -> str:
-        return str((self.resident or {}).get(self._key) or "unbekannt")
+        return str((self.resident or {}).get("plan_deviation") or "unbekannt")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         resident = self.resident or {}
         return {
-            "presence": resident.get("presence", "unknown"),
+            "presence": resident.get("presence"),
             "presence_source": resident.get("presence_source"),
+            "presence_entity_id": resident.get("presence_entity_id"),
             "planned_away": resident.get("planned_away"),
             "next_departure": resident.get("next_departure"),
             "expected_home": resident.get("expected_home"),
+            "plan_matches_actual": resident.get("plan_matches_actual"),
         }
 
 
@@ -235,7 +234,9 @@ class CastnCasaHeatSensor(CastnCasaHeatEntity, SensorEntity):
             "comfort_buffer_minutes": heat["comfort_buffer_minutes"],
             "next_house_empty_from": heat["next_house_empty_from"],
             "next_house_empty_until": heat["next_house_empty_until"],
-            "confirmed_home": heat.get("confirmed_home", False),
+            "actual_home_now": heat["actual_home_now"],
+            "presence_override_home": heat["presence_override_home"],
+            "effective_presence_source": heat["effective_presence_source"],
             "priority": heat["priority"],
         }
 
@@ -286,7 +287,7 @@ class HeatModeSensor(CastnCasaHeatSensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         attrs = super().extra_state_attributes
         attrs["reduction_window_usable"] = self.heat["reduction_window_usable"]
-        attrs["note"] = "Bestätigte Anwesenheit hat immer Vorrang vor der Dienstplan-Prognose."
+        attrs["note"] = "Empfehlung aus Dienstplan-Prognose. Reale Anwesenheit in Home Assistant hat immer Vorrang."
         return attrs
 
 

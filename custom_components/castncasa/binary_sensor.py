@@ -1,8 +1,8 @@
-"""Binary sensors for CastnCasa household forecasting and presence."""
+"""Binary sensors for CastnCasa household forecasting."""
 
 from __future__ import annotations
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -30,6 +30,7 @@ async def async_setup_entry(
     heat_settings = HeatSettings.from_options(entry.options)
     entities: list[BinarySensorEntity] = [
         HouseholdEmptySensor(coordinator, instance_id),
+        HouseholdEffectiveEmptySensor(coordinator, instance_id),
         HeatRecommendationBinarySensor(coordinator, instance_id, heat_settings, "lowering_recommended", "Absenkung empfohlen", "mdi:thermometer-chevron-down"),
         HeatRecommendationBinarySensor(coordinator, instance_id, heat_settings, "reheating", "Wiederaufheizen", "mdi:radiator"),
     ]
@@ -37,9 +38,13 @@ async def async_setup_entry(
         entities.extend(_resident_entities(coordinator, instance_id, resident))
     async_add_entities(entities)
 
-    def _add_new_residents() -> None:
+    def _sync_residents() -> None:
+        current_residents = coordinator.data.get("residents", [])
+        current_ids = {str(resident["id"]) for resident in current_residents}
+        # A removed resident may later pair again with the same device ID.
+        known.intersection_update(current_ids)
         new_entities = []
-        for resident in coordinator.data.get("residents", []):
+        for resident in current_residents:
             resident_id = str(resident["id"])
             if resident_id not in known:
                 known.add(resident_id)
@@ -47,11 +52,11 @@ async def async_setup_entry(
         if new_entities:
             async_add_entities(new_entities)
 
-    entry.async_on_unload(coordinator.async_add_listener(_add_new_residents))
+    entry.async_on_unload(coordinator.async_add_listener(_sync_residents))
 
 
 class HouseholdEmptySensor(CastnCasaEntity, BinarySensorEntity):
-    """True only when the forecast says empty and nobody is confirmed home."""
+    """True only when all active residents are forecast away now."""
 
     _attr_name = "Haushalt geplant leer"
     _attr_icon = "mdi:home-export-outline"
@@ -62,22 +67,46 @@ class HouseholdEmptySensor(CastnCasaEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        household = self.coordinator.data.get("household", {})
-        return bool(household.get("effective_house_empty", household.get("planned_house_empty")))
+        return bool(self.coordinator.data.get("household", {}).get("planned_house_empty"))
 
     @property
     def extra_state_attributes(self):
         household = self.coordinator.data.get("household", {})
         return {
-            "forecast_house_empty": household.get("planned_house_empty"),
-            "effective_house_empty": household.get("effective_house_empty"),
-            "confirmed_home": household.get("confirmed_home"),
-            "confirmed_home_names": household.get("confirmed_home_names", []),
             "next_house_empty_from": household.get("next_house_empty_from"),
             "next_house_empty_until": household.get("next_house_empty_until"),
             "planned_away_names": household.get("planned_away_names", []),
             "priority": household.get("priority", "forecast_only"),
             "note": household.get("priority_note"),
+        }
+
+
+class HouseholdEffectiveEmptySensor(CastnCasaEntity, BinarySensorEntity):
+    """Effective household vacancy with actual presence taking priority."""
+
+    _attr_name = "Haushalt effektiv leer"
+    _attr_icon = "mdi:home-account"
+
+    def __init__(self, coordinator, instance_id: str) -> None:
+        super().__init__(coordinator, instance_id)
+        self._attr_unique_id = f"{instance_id}_effective_house_empty"
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.coordinator.data.get("household", {}).get("effective_house_empty"))
+
+    @property
+    def extra_state_attributes(self):
+        household = self.coordinator.data.get("household", {})
+        return {
+            "source": household.get("effective_presence_source"),
+            "planned_house_empty": household.get("planned_house_empty"),
+            "actual_house_empty": household.get("actual_house_empty"),
+            "actual_home_names": household.get("actual_home_names", []),
+            "actual_away_names": household.get("actual_away_names", []),
+            "presence_unknown_names": household.get("presence_unknown_names", []),
+            "presence_complete": household.get("presence_complete"),
+            "priority": "actual_presence_first",
         }
 
 
@@ -100,19 +129,17 @@ class ResidentAwaySensor(CastnCasaResidentEntity, BinarySensorEntity):
         resident = self.resident or {}
         return {
             "next_planned_absence": resident.get("next_planned_absence"),
-            "next_departure": resident.get("next_departure"),
             "expected_home": resident.get("expected_home"),
-            "presence": resident.get("presence", "unknown"),
-            "plan_deviation": resident.get("plan_deviation", "unbekannt"),
             "priority": "forecast_only",
         }
 
 
 class ResidentPresenceSensor(CastnCasaResidentEntity, BinarySensorEntity):
-    """Actual resident presence from HA tracking or app heartbeat."""
+    """Actual resident presence, independent from schedule sync."""
 
     _attr_name = "Anwesend"
     _attr_icon = "mdi:account-check-outline"
+    _attr_device_class = BinarySensorDeviceClass.OCCUPANCY
 
     def __init__(self, coordinator, instance_id: str, resident: dict) -> None:
         super().__init__(coordinator, instance_id, resident)
@@ -120,7 +147,8 @@ class ResidentPresenceSensor(CastnCasaResidentEntity, BinarySensorEntity):
 
     @property
     def available(self) -> bool:
-        return (self.resident or {}).get("presence") in {"home", "away"}
+        resident = self.resident
+        return resident is not None and resident.get("presence") in {"home", "away"}
 
     @property
     def is_on(self) -> bool:
@@ -131,13 +159,13 @@ class ResidentPresenceSensor(CastnCasaResidentEntity, BinarySensorEntity):
         resident = self.resident or {}
         return {
             "presence_source": resident.get("presence_source"),
+            "presence_entity_id": resident.get("presence_entity_id"),
+            "presence_raw_state": resident.get("presence_raw_state"),
+            "presence_age_seconds": resident.get("presence_age_seconds"),
             "last_seen": resident.get("last_seen"),
-            "person_entity_id": resident.get("person_entity_id"),
-            "heartbeat_age_seconds": resident.get("heartbeat_age_seconds"),
-            "heartbeat_fresh": resident.get("heartbeat_fresh"),
             "planned_away": resident.get("planned_away"),
-            "plan_deviation": resident.get("plan_deviation", "unbekannt"),
-            "priority": "actual_presence_over_forecast",
+            "plan_deviation": resident.get("plan_deviation"),
+            "priority": "actual_presence_first",
         }
 
 
@@ -170,7 +198,6 @@ class HeatRecommendationBinarySensor(CastnCasaHeatEntity, BinarySensorEntity):
             "min_empty_minutes": heat["min_empty_minutes"],
             "reheat_lead_minutes": heat["reheat_lead_minutes"],
             "comfort_buffer_minutes": heat["comfort_buffer_minutes"],
-            "confirmed_home": heat.get("confirmed_home", False),
             "priority": heat["priority"],
-            "note": "Nur Empfehlung; bestätigte Anwesenheit hat Vorrang.",
+            "note": "Nur Empfehlung; CastnCasa schaltet keine Heizung selbst.",
         }

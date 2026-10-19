@@ -56,6 +56,12 @@ class CastnCasaResidentEntity(CoordinatorEntity[CastnCasaCoordinator]):
                 return item
         return None
 
+    @property
+    def available(self) -> bool:
+        # Disappearing residents become unavailable immediately; the integration
+        # then removes their registry entities and resident device completely.
+        return self.coordinator.last_update_success and self.resident is not None
+
 
 class CastnCasaHeatEntity(CoordinatorEntity[CastnCasaCoordinator]):
     """Base entity for the separate CastnCasa Heat recommendation device."""
