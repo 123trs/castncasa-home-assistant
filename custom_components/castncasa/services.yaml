@@ -29,3 +29,19 @@ revoke_device:
       required: true
       selector:
         text:
+
+set_resident_color:
+  name: Set resident color
+  description: Sets the CastnCasa calendar color for one resident.
+  fields:
+    device_id:
+      name: Device ID
+      required: true
+      selector:
+        text:
+    color:
+      name: Color
+      required: true
+      example: "#1976D2"
+      selector:
+        text:
