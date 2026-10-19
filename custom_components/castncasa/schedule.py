@@ -430,8 +430,14 @@ class CastnCasaScheduleStore:
             if current and supplied_revision != int(current.get("revision", 0)):
                 raise ScheduleConflictError("revision_conflict")
 
-        color_auto = bool(resident_raw.get("color_auto", False))
-        if color_auto:
+        has_color_mode = "color_auto" in resident_raw
+        color_auto = bool(resident_raw.get("color_auto", False)) if has_color_mode else False
+        legacy_color_locked = not has_color_mode and bool(current.get("color_locked", False))
+        if legacy_color_locked:
+            current_color = str(current.get("color", "")).strip()
+            if COLOR_RE.fullmatch(current_color):
+                color = current_color
+        elif color_auto:
             used_colors = {
                 str(other.get("color", "")).upper()
                 for other_id, other in self._data["residents"].items()
@@ -450,6 +456,11 @@ class CastnCasaScheduleStore:
                     color,
                 )
 
+        if has_color_mode:
+            color_locked = not color_auto
+        else:
+            color_locked = bool(current.get("color_locked", False))
+
         revision = int(current.get("revision", 0)) + 1
         now = datetime.now(self.timezone).isoformat(timespec="seconds")
         resident = {
@@ -457,6 +468,7 @@ class CastnCasaScheduleStore:
             "device_id": device_id,
             "name": name,
             "color": color,
+            "color_locked": color_locked,
             "active": bool(resident_raw.get("active", True)),
             "profiles": profiles,
             "assignments": assignments,
@@ -482,6 +494,7 @@ class CastnCasaScheduleStore:
         if str(resident.get("color", "")).upper() == normalized:
             return True
         resident["color"] = normalized
+        resident["color_locked"] = True
         resident["revision"] = int(resident.get("revision", 0)) + 1
         resident["updated_at"] = datetime.now(self.timezone).isoformat(timespec="seconds")
         await self._async_save()
