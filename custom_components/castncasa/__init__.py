@@ -230,8 +230,30 @@ async def async_remove_config_entry_device(
     entry: CastnCasaConfigEntry,
     device_entry: dr.DeviceEntry,
 ) -> bool:
-    """Allow removal only for orphaned CastnCasa devices."""
+    """Remove a resident device together with its CastnCasa data."""
+    schedule = entry.runtime_data.schedule
+    prefix = f"{schedule.instance_id}:resident:"
+    resident_id = None
+    for domain, identifier in device_entry.identifiers:
+        if domain == DOMAIN and identifier.startswith(prefix):
+            resident_id = identifier.removeprefix(prefix)
+            break
+
+    # Household and Heat are integration-owned aggregate devices. They disappear
+    # only when the config entry is removed; only resident devices are user-removable.
+    if resident_id is None:
+        return False
+
+    manager: CastnCasaPairingManager = hass.data[DOMAIN][DATA_MANAGER]
+    await schedule.async_remove_resident(resident_id)
+    await manager.revoke_device(resident_id)
+
+    # Removing the resident normally triggers _remove_departed_resident_devices.
+    # Explicitly clear any remaining registry entities too so stale/orphaned
+    # resident devices can always be deleted from the HA device page.
     entity_registry = er.async_get(hass)
-    return not er.async_entries_for_device(
+    for entity_entry in er.async_entries_for_device(
         entity_registry, device_entry.id, include_disabled_entities=True
-    )
+    ):
+        entity_registry.async_remove(entity_entry.entity_id)
+    return True
