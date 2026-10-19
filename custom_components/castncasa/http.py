@@ -11,11 +11,16 @@ from aiohttp import web
 import segno
 
 from homeassistant.components.http import HomeAssistantView
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import network
 
 from .const import (
+    DATA_COORDINATOR,
+    DOMAIN,
     PAIR_CLAIM_PATH,
     PAIRING_PATH,
     PAIRING_QR_PATH,
+    PRESENCE_PATH,
     SCHEDULE_PATH,
     STATE_PATH,
     STATUS_PATH,
@@ -25,6 +30,32 @@ from .protocol import b64url_decode, decrypt_api_body, encrypt_api_body
 from .schedule import CastnCasaScheduleStore, ScheduleConflictError, ScheduleValidationError
 
 MAX_SCHEDULE_BODY = 384 * 1024
+MAX_PRESENCE_BODY = 16 * 1024
+
+
+def _sync_urls(hass: HomeAssistant) -> tuple[str | None, str | None]:
+    local_url: str | None = None
+    remote_url: str | None = None
+    try:
+        local_url = network.get_url(
+            hass,
+            allow_internal=True,
+            allow_external=False,
+            allow_cloud=False,
+        ).rstrip("/")
+    except Exception:
+        pass
+    try:
+        remote_url = network.get_url(
+            hass,
+            allow_internal=False,
+            allow_external=True,
+            allow_cloud=True,
+            prefer_external=True,
+        ).rstrip("/")
+    except Exception:
+        pass
+    return local_url, remote_url
 
 
 def _device_auth_headers(request: web.Request) -> tuple[str, str, str, str]:
@@ -276,7 +307,8 @@ class CastnCasaStatusView(HomeAssistantView):
     name = "api:castncasa:status"
     requires_auth = False
 
-    def __init__(self, manager: CastnCasaPairingManager) -> None:
+    def __init__(self, hass: HomeAssistant, manager: CastnCasaPairingManager) -> None:
+        self.hass = hass
         self.manager = manager
 
     async def get(self, request: web.Request) -> web.Response:
@@ -284,6 +316,7 @@ class CastnCasaStatusView(HomeAssistantView):
             device_id, record = await _authenticate(self.manager, request, STATUS_PATH)
         except DeviceAuthError:
             return web.json_response({"error": "invalid_auth"}, status=401)
+        local_url, remote_url = _sync_urls(self.hass)
         return web.json_response(
             {
                 "ok": True,
@@ -292,6 +325,19 @@ class CastnCasaStatusView(HomeAssistantView):
                 "encrypted_schedule": True,
                 "device_id": device_id,
                 "device_name": record.get("device_name", "CastnCasa"),
+                "sync": {
+                    "mode": "dual",
+                    "remote_url": remote_url,
+                    "local_url": local_url,
+                    "remote_configured": remote_url is not None,
+                    "offline_queue_supported": True,
+                    "schedule_revisioning": True,
+                },
+                "presence": {
+                    "endpoint": PRESENCE_PATH,
+                    "calendar_independent": True,
+                    "priority": "actual_presence_first",
+                },
             },
             headers={"Cache-Control": "no-store"},
         )
@@ -397,6 +443,70 @@ class CastnCasaScheduleView(HomeAssistantView):
         )
 
 
+class CastnCasaPresenceView(HomeAssistantView):
+    """Read/update resident presence independently from calendar sync."""
+
+    url = PRESENCE_PATH
+    name = "api:castncasa:presence"
+    requires_auth = False
+
+    def __init__(self, manager: CastnCasaPairingManager) -> None:
+        self.manager = manager
+
+    async def get(self, request: web.Request) -> web.Response:
+        try:
+            device_id, record = await _authenticate(self.manager, request, PRESENCE_PATH)
+        except DeviceAuthError:
+            return web.json_response({"error": "invalid_auth"}, status=401)
+        return _encrypted_json_response(
+            record,
+            request,
+            PRESENCE_PATH,
+            {"ok": True, "api_version": 1, **self.manager.device_metadata(device_id)},
+        )
+
+    async def put(self, request: web.Request) -> web.Response:
+        envelope = await request.read()
+        if len(envelope) > MAX_PRESENCE_BODY:
+            return web.json_response({"error": "request_too_large"}, status=413)
+        try:
+            device_id, record = await _authenticate(
+                self.manager, request, PRESENCE_PATH, envelope
+            )
+        except DeviceAuthError:
+            return web.json_response({"error": "invalid_auth"}, status=401)
+
+        try:
+            plaintext = _decrypt_request_body(record, request, PRESENCE_PATH, envelope)
+            data = json.loads(plaintext)
+        except Exception:
+            return _encrypted_json_response(
+                record,
+                request,
+                PRESENCE_PATH,
+                {"error": "invalid_encrypted_body"},
+                status=400,
+            )
+        if not isinstance(data, dict):
+            return _encrypted_json_response(
+                record, request, PRESENCE_PATH, {"error": "invalid_request"}, status=400
+            )
+        state = str(data.get("state", "")).strip().lower()
+        source = str(data.get("source", "app")).strip()[:32] or "app"
+        try:
+            metadata = await self.manager.async_update_presence(device_id, state, source)
+        except (DeviceAuthError, ValueError) as err:
+            return _encrypted_json_response(
+                record, request, PRESENCE_PATH, {"error": str(err)}, status=400
+            )
+        return _encrypted_json_response(
+            record,
+            request,
+            PRESENCE_PATH,
+            {"ok": True, "api_version": 1, **metadata},
+        )
+
+
 class CastnCasaStateView(HomeAssistantView):
     """Return encrypted household forecast state to an authenticated device."""
 
@@ -404,7 +514,10 @@ class CastnCasaStateView(HomeAssistantView):
     name = "api:castncasa:state"
     requires_auth = False
 
-    def __init__(self, manager: CastnCasaPairingManager, schedule: CastnCasaScheduleStore) -> None:
+    def __init__(
+        self, hass: HomeAssistant, manager: CastnCasaPairingManager, schedule: CastnCasaScheduleStore
+    ) -> None:
+        self.hass = hass
         self.manager = manager
         self.schedule = schedule
 
@@ -413,9 +526,11 @@ class CastnCasaStateView(HomeAssistantView):
             _device_id, record = await _authenticate(self.manager, request, STATE_PATH)
         except DeviceAuthError:
             return web.json_response({"error": "invalid_auth"}, status=401)
+        coordinator = self.hass.data.get(DOMAIN, {}).get(DATA_COORDINATOR)
+        payload = coordinator.data if coordinator is not None else self.schedule.state_snapshot()
         return _encrypted_json_response(
             record,
             request,
             STATE_PATH,
-            self.schedule.state_snapshot(),
+            payload,
         )
