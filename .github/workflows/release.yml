@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.7
+name: Release CastnCasa Home Assistant 1.0.8
 
 on:
   push:
@@ -14,16 +14,16 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Create GitHub release v1.0.7
+      - name: Create GitHub release v1.0.8
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.7 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.7 already exists."
+          if gh release view v1.0.8 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.8 already exists."
             exit 0
           fi
-          gh release create v1.0.7 \
+          gh release create v1.0.8 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "CastnCasa Home Assistant 1.0.7" \
-            --notes "Fixes resident calendar colors in Home Assistant. CastnCasa now keeps the persisted Home Assistant calendar color synchronized with each resident color from the app, including existing calendar entities and later color changes. No entity-ID or pairing changes."
+            --title "CastnCasa Home Assistant 1.0.8" \
+            --notes "Improves resident lifecycle handling and color synchronization. Removed residents can be paired again cleanly and their entities are recreated across sensor, binary-sensor and calendar platforms. Resident calendar colors continue to follow the current CastnCasa resident color, including persisted Home Assistant calendar colors. The complete resident entity contract remains unchanged."
