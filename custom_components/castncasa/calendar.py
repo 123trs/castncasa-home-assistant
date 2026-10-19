@@ -6,7 +6,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
@@ -77,6 +78,24 @@ def _next_special(items: list[dict[str, Any]]) -> dict[str, Any] | None:
     return None
 
 
+def _sync_calendar_registry_color(entity: CalendarEntity) -> None:
+    """Keep Home Assistant's persisted calendar color aligned with CastnCasa."""
+    if not entity.entity_id:
+        return
+    registry = er.async_get(entity.hass)
+    entry = registry.async_get(entity.entity_id)
+    if entry is None:
+        return
+    color = entity.initial_color
+    if color is None:
+        return
+    options = dict(entry.options.get("calendar", {}))
+    if options.get("color") == color:
+        return
+    options["color"] = color
+    registry.async_update_entity_options(entity.entity_id, "calendar", options)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: CastnCasaConfigEntry,
@@ -124,11 +143,20 @@ class ResidentCalendar(CastnCasaResidentEntity, CalendarEntity):
         super().__init__(coordinator, instance_id, resident)
         self._schedule = schedule
         self._attr_unique_id = f"{instance_id}_resident_{self.resident_id}_calendar"
-        self._initial_color = str(resident.get("color") or "#4263eb")
 
     @property
     def initial_color(self) -> str:
-        return self._initial_color
+        resident = self.resident or {}
+        return str(resident.get("color") or "#4263eb")
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        _sync_calendar_registry_color(self)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        _sync_calendar_registry_color(self)
+        super()._handle_coordinator_update()
 
     @property
     def event(self) -> CalendarEvent | None:
@@ -163,11 +191,20 @@ class ResidentMonthCalendar(CastnCasaResidentEntity, CalendarEntity):
         super().__init__(coordinator, instance_id, resident)
         self._schedule = schedule
         self._attr_unique_id = f"{instance_id}_resident_{self.resident_id}_month_calendar"
-        self._initial_color = str(resident.get("color") or "#4263eb")
 
     @property
     def initial_color(self) -> str:
-        return self._initial_color
+        resident = self.resident or {}
+        return str(resident.get("color") or "#4263eb")
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        _sync_calendar_registry_color(self)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        _sync_calendar_registry_color(self)
+        super()._handle_coordinator_update()
 
     @property
     def event(self) -> CalendarEvent | None:
