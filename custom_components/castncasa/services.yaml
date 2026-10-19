@@ -32,7 +32,7 @@ revoke_device:
 
 set_resident_color:
   name: Set resident color
-  description: Sets the CastnCasa calendar color for one resident.
+  description: Sets the persistent CastnCasa calendar color for one resident.
   fields:
     device_id:
       name: Device ID
