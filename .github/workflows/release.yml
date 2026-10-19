@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.9
+name: Release CastnCasa Home Assistant 1.0.10
 
 on:
   push:
@@ -14,16 +14,16 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - name: Create GitHub release v1.0.9
+      - name: Create GitHub release v1.0.10
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.9 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.9 already exists."
+          if gh release view v1.0.10 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.10 already exists."
             exit 0
           fi
-          gh release create v1.0.9 \
+          gh release create v1.0.10 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "CastnCasa Home Assistant 1.0.9" \
-            --notes "Hotfix for CastnCasa Home Assistant 1.0.8: restores the missing DATA_PRESENCE constant so the integration loads correctly after restart. Resident lifecycle handling and calendar-color synchronization from 1.0.8 remain included."
+            --title "CastnCasa Home Assistant 1.0.10" \
+            --notes "Full synchronization of the tested CastnCasa Home Assistant integration. Fixes the Heat sensor presence fields including actual_home_now and effective_presence_source, while preserving resident lifecycle cleanup, calendar-color synchronization, pairing, dual remote/local sync and updated translations."
