@@ -3,7 +3,7 @@
 from homeassistant.const import Platform
 
 DOMAIN = "castncasa"
-INTEGRATION_VERSION = "1.0.10"
+INTEGRATION_VERSION = "1.0.12"
 DATA_MANAGER = "manager"
 DATA_SCHEDULE = "schedule"
 DATA_PRESENCE = "presence"
@@ -30,6 +30,7 @@ APP_PRESENCE_TTL_SECONDS = 900
 SERVICE_CREATE_PAIRING = "create_pairing"
 SERVICE_LIST_DEVICES = "list_devices"
 SERVICE_REVOKE_DEVICE = "revoke_device"
+SERVICE_SET_RESIDENT_COLOR = "set_resident_color"
 
 PAIRING_PATH = "/api/castncasa/pairing/{pairing_id}"
 PAIRING_QR_PATH = "/api/castncasa/pairing/{pairing_id}/qr.svg"
