@@ -242,16 +242,16 @@ class CastnCasaTimeCalendar extends HTMLElement {
     text.style.transformOrigin = "center center";
 
     if (widthPct < 10) {
-      text.style.fontSize = isDesktop ? "10px" : "8px";
+      text.style.fontSize = isDesktop ? "12px" : "8px";
       text.style.transform = isDesktop ? "scaleX(.85)" : "scaleX(.55)";
     } else if (widthPct < 18) {
-      text.style.fontSize = isDesktop ? "11px" : "9px";
+      text.style.fontSize = isDesktop ? "13px" : "9px";
       text.style.transform = isDesktop ? "none" : "scaleX(.75)";
     } else if (widthPct < 28) {
-      text.style.fontSize = isDesktop ? "11px" : "10px";
+      text.style.fontSize = isDesktop ? "13px" : "10px";
       text.style.transform = isDesktop ? "none" : "scaleX(.9)";
     } else {
-      text.style.fontSize = isDesktop ? "12px" : "11px";
+      text.style.fontSize = isDesktop ? "14px" : "11px";
       text.style.transform = "none";
     }
 
