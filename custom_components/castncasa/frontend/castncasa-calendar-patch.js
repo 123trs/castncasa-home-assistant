@@ -5,6 +5,7 @@ customElements.whenDefined("castncasa-time-calendar").then(() => {
 
   const originalStyleMonthEvent = Card.prototype._styleMonthEvent;
   const originalTuneCalendar = Card.prototype._tuneCalendar;
+  const originalDisconnected = Card.prototype.disconnectedCallback;
 
   const isMobile = () => window.matchMedia?.("(max-width: 700px)")?.matches;
 
@@ -34,6 +35,51 @@ customElements.whenDefined("castncasa-time-calendar").then(() => {
     const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
     return { start: start.getTime(), end: end.getTime() };
+  };
+
+  const getCalendar = (instance) => {
+    const full = instance?._findDeep?.(instance._card, "ha-full-calendar");
+    return full?.calendar || null;
+  };
+
+  const revisionSignature = (instance) => (instance?._residentInfo || [])
+    .map((item) => {
+      const revision = instance?._hass?.states?.[item.id]?.attributes?.schedule_revision;
+      return `${item.id}:${revision ?? ""}`;
+    })
+    .join("|");
+
+  const sameMonth = (a, b) => a instanceof Date && b instanceof Date
+    && a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth();
+
+  const refetchPreservingMonth = (instance) => {
+    const fc = getCalendar(instance);
+    if (!fc?.refetchEvents) return;
+    const current = fc.getDate?.();
+    const wanted = current instanceof Date ? new Date(current.getTime()) : null;
+    fc.refetchEvents();
+    if (!(wanted instanceof Date)) return;
+    [0, 80, 250, 700].forEach((delay) => {
+      window.setTimeout(() => {
+        const currentCalendar = getCalendar(instance);
+        if (!currentCalendar?.getDate || !currentCalendar?.gotoDate) return;
+        const shown = currentCalendar.getDate();
+        if (!sameMonth(shown, wanted)) currentCalendar.gotoDate(wanted);
+      }, delay);
+    });
+  };
+
+  const ensureRevisionPoll = (instance) => {
+    if (instance.__castncasaRevisionPollTimer) return;
+    instance.__castncasaRevisionSignature = revisionSignature(instance);
+    instance.__castncasaRevisionPollTimer = window.setInterval(() => {
+      if (!instance.isConnected || !instance._hass) return;
+      const signature = revisionSignature(instance);
+      if (!signature || signature === instance.__castncasaRevisionSignature) return;
+      instance.__castncasaRevisionSignature = signature;
+      refetchPreservingMonth(instance);
+    }, 3000);
   };
 
   const renderMobileStacks = (instance, fc) => {
@@ -162,6 +208,7 @@ customElements.whenDefined("castncasa-time-calendar").then(() => {
   if (typeof originalTuneCalendar === "function") {
     Card.prototype._tuneCalendar = function() {
       originalTuneCalendar.call(this);
+      ensureRevisionPoll(this);
       if (!isMobile()) return;
       const full = this._findDeep?.(this._card, "ha-full-calendar");
       const fc = full?.calendar;
@@ -169,4 +216,12 @@ customElements.whenDefined("castncasa-time-calendar").then(() => {
       window.requestAnimationFrame(() => renderMobileStacks(this, fc));
     };
   }
+
+  Card.prototype.disconnectedCallback = function() {
+    if (this.__castncasaRevisionPollTimer) {
+      window.clearInterval(this.__castncasaRevisionPollTimer);
+      this.__castncasaRevisionPollTimer = null;
+    }
+    if (typeof originalDisconnected === "function") originalDisconnected.call(this);
+  };
 });
