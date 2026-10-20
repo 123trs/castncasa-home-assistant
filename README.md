@@ -28,6 +28,19 @@ A step-by-step German setup guide for customers is available here:
 
 [CastnCasa – Käufer-Setup für Home Assistant](docs/KAUFER_SETUP_DE.md)
 
+## CastnCasa calendar card
+
+From version 1.0.14 the integration ships and loads the tested CastnCasa calendar card automatically. Add this card to a Home Assistant dashboard:
+
+```yaml
+type: custom:castncasa-time-calendar
+title: Abwesenheit · Alle Bewohner
+initial_view: dayGridMonth
+include_holidays: true
+```
+
+The month view discovers the currently paired resident calendars automatically. On desktop/tablet, shift absence is positioned and sized from the **actual start and end times**, not from the shift name. The legend only lists shifts that occur in the currently selected month. On phones, resident shifts are shown as compact, color-coded short-name chips stacked vertically; public holidays use the compact `FT` chip. Calendar changes are checked every 60 seconds and only trigger a refresh when CastnCasa data actually changed, while the currently selected month is preserved.
+
 ## Synchronization and presence
 
 CastnCasa supports two operating modes automatically:
