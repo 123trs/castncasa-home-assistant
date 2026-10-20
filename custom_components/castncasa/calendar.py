@@ -201,6 +201,11 @@ class ResidentMonthCalendar(CastnCasaResidentEntity, CalendarEntity):
         resident = self.resident or {}
         return str(resident.get("color") or "#4263eb")
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        resident = self.resident or {}
+        return {"schedule_revision": int(resident.get("revision", 0) or 0)}
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         _sync_calendar_registry_color(self)
