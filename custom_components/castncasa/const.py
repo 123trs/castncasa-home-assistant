@@ -3,7 +3,7 @@
 from homeassistant.const import Platform
 
 DOMAIN = "castncasa"
-INTEGRATION_VERSION = "1.0.16b1"
+INTEGRATION_VERSION = "1.0.16b2"
 DATA_MANAGER = "manager"
 DATA_SCHEDULE = "schedule"
 DATA_PRESENCE = "presence"
