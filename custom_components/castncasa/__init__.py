@@ -56,18 +56,16 @@ _FRONTEND_DIR = Path(__file__).parent / "frontend"
 _FRONTEND_MODULE_URLS = (
     f"{_FRONTEND_URL_BASE}/castncasa-time-calendar.js?v={INTEGRATION_VERSION}",
     f"{_FRONTEND_URL_BASE}/castncasa-calendar-patch.js?v={INTEGRATION_VERSION}",
-    f"{_FRONTEND_URL_BASE}/castncasa-desktop-text.js?v={INTEGRATION_VERSION}",
 )
 
 
-async def _async_register_lovelace_resources(hass: HomeAssistant) -> None:
-    """Register CastnCasa frontend modules as persistent Lovelace resources."""
+async def _async_register_lovelace_resources(hass: HomeAssistant) -> bool:
+    """Register CastnCasa modules persistently, avoiding duplicate frontend loads."""
     try:
         lovelace_data = hass.data.get("lovelace")
         resources = getattr(lovelace_data, "resources", None)
         if resources is None:
-            _LOGGER.debug("Lovelace resources are unavailable; using extra JS URLs only")
-            return
+            return False
 
         if not resources.loaded:
             await resources.async_load()
@@ -85,8 +83,10 @@ async def _async_register_lovelace_resources(hass: HomeAssistant) -> None:
                 continue
             if current.get("url") != module_url or current.get("res_type") != "module":
                 await resources.async_update_item(current["id"], payload)
+        return True
     except Exception:  # noqa: BLE001
         _LOGGER.exception("Could not register CastnCasa Lovelace resources")
+        return False
 
 
 @dataclass(slots=True)
@@ -130,9 +130,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         ]
     )
-    for module_url in _FRONTEND_MODULE_URLS:
-        add_extra_js_url(hass, module_url)
-    await _async_register_lovelace_resources(hass)
+    if not await _async_register_lovelace_resources(hass):
+        for module_url in _FRONTEND_MODULE_URLS:
+            add_extra_js_url(hass, module_url)
 
     manager = CastnCasaPairingManager(hass)
     schedule = CastnCasaScheduleStore(hass)
