@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.13
+name: Release CastnCasa Home Assistant 1.0.14
 
 on:
   push:
@@ -16,110 +16,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply tested 1.0.13 legacy-color compatibility patch
+      - name: Verify CastnCasa 1.0.14 release state
         run: |
           python3 - <<'PY'
+          import json
           from pathlib import Path
 
-          schedule = Path("custom_components/castncasa/schedule.py")
-          s = schedule.read_text()
-          old = '''        color_auto = bool(resident_raw.get("color_auto", False))
-                  if color_auto:
-                      used_colors = {
-                          str(other.get("color", "")).upper()
-                          for other_id, other in self._data["residents"].items()
-                          if other_id != device_id and bool(other.get("active", True))
-                      }
-                      current_color = str(current.get("color", "")).strip()
-                      if COLOR_RE.fullmatch(current_color) and current_color.upper() not in used_colors:
-                          color = current_color
-                      elif color.upper() in used_colors:
-                          color = next(
-                              (
-                                  candidate
-                                  for candidate in RESIDENT_COLOR_PALETTE
-                                  if candidate.upper() not in used_colors
-                              ),
-                              color,
-                          )
+          manifest = json.loads(Path("custom_components/castncasa/manifest.json").read_text())
+          if manifest.get("version") != "1.0.14":
+              raise SystemExit(f"Unexpected manifest version: {manifest.get('version')}")
 
-                  revision = int(current.get("revision", 0)) + 1
-          '''
-          new = '''        has_color_mode = "color_auto" in resident_raw
-                  color_auto = bool(resident_raw.get("color_auto", False)) if has_color_mode else False
-                  legacy_color_locked = not has_color_mode and bool(current.get("color_locked", False))
-                  if legacy_color_locked:
-                      current_color = str(current.get("color", "")).strip()
-                      if COLOR_RE.fullmatch(current_color):
-                          color = current_color
-                  elif color_auto:
-                      used_colors = {
-                          str(other.get("color", "")).upper()
-                          for other_id, other in self._data["residents"].items()
-                          if other_id != device_id and bool(other.get("active", True))
-                      }
-                      current_color = str(current.get("color", "")).strip()
-                      if COLOR_RE.fullmatch(current_color) and current_color.upper() not in used_colors:
-                          color = current_color
-                      elif color.upper() in used_colors:
-                          color = next(
-                              (
-                                  candidate
-                                  for candidate in RESIDENT_COLOR_PALETTE
-                                  if candidate.upper() not in used_colors
-                              ),
-                              color,
-                          )
+          const = Path("custom_components/castncasa/const.py").read_text()
+          if 'INTEGRATION_VERSION = "1.0.14"' not in const:
+              raise SystemExit("const.py is not at 1.0.14")
 
-                  if has_color_mode:
-                      color_locked = not color_auto
-                  else:
-                      color_locked = bool(current.get("color_locked", False))
-
-                  revision = int(current.get("revision", 0)) + 1
-          '''
-          if old in s:
-              s = s.replace(old, new, 1)
-              s = s.replace('            "color": color,\n            "active": bool(resident_raw.get("active", True)),\n', '            "color": color,\n            "color_locked": color_locked,\n            "active": bool(resident_raw.get("active", True)),\n', 1)
-              s = s.replace('        resident["color"] = normalized\n        resident["revision"] = int(resident.get("revision", 0)) + 1\n', '        resident["color"] = normalized\n        resident["color_locked"] = True\n        resident["revision"] = int(resident.get("revision", 0)) + 1\n', 1)
-              schedule.write_text(s)
-          elif 'legacy_color_locked = not has_color_mode' not in s:
-              raise SystemExit("Expected 1.0.12 color block not found")
-
-          manifest = Path("custom_components/castncasa/manifest.json")
-          m = manifest.read_text()
-          if '"version": "1.0.12"' in m:
-              manifest.write_text(m.replace('"version": "1.0.12"', '"version": "1.0.13"', 1))
-          elif '"version": "1.0.13"' not in m:
-              raise SystemExit("Unexpected manifest version")
-
-          const = Path("custom_components/castncasa/const.py")
-          c = const.read_text()
-          if 'INTEGRATION_VERSION = "1.0.12"' in c:
-              const.write_text(c.replace('INTEGRATION_VERSION = "1.0.12"', 'INTEGRATION_VERSION = "1.0.13"', 1))
-          elif 'INTEGRATION_VERSION = "1.0.13"' not in c:
-              raise SystemExit("Unexpected integration version")
+          for path in (
+              "custom_components/castncasa/frontend/castncasa-time-calendar.js",
+              "custom_components/castncasa/frontend/castncasa-calendar-patch.js",
+          ):
+              if not Path(path).is_file():
+                  raise SystemExit(f"Missing frontend release file: {path}")
           PY
           git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add custom_components/castncasa/schedule.py custom_components/castncasa/manifest.json custom_components/castncasa/const.py
-          if ! git diff --cached --quiet; then
-            git commit -m "CastnCasa HA 1.0.13: protect resident colors from legacy clients"
-            git push origin HEAD:main
-          fi
 
-      - name: Create GitHub release v1.0.13
+      - name: Create GitHub release v1.0.14
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.13 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.13 already exists."
+          if gh release view v1.0.14 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.14 already exists."
             exit 0
           fi
           TARGET="$(git rev-parse HEAD)"
-          gh release create v1.0.13 \
+          gh release create v1.0.14 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "CastnCasa Home Assistant 1.0.13" \
-            --notes "Hardens resident color synchronization for legacy CastnCasa clients. A resident color explicitly fixed in Home Assistant is protected from older apps that do not yet transmit the automatic/manual color flag. New clients retain distinct automatic colors while intentionally chosen duplicate colors remain allowed."
+            --title "CastnCasa Home Assistant 1.0.14" \
+            --notes "Adds the production-tested CastnCasa calendar card to the HACS integration. Desktop and tablet month views position and size resident shift bars from the actual shift start and end times, with rounded bars and short labels. The legend lists only shifts present in the selected month. Mobile uses compact resident-colored shift chips stacked vertically and an FT holiday chip. Calendar data is checked every 60 seconds and the view refreshes only when CastnCasa data changed, while preserving the selected month."
