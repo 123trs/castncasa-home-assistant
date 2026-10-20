@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 import probatio
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_STATE_CHANGED
 from homeassistant.core import Event, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
@@ -24,6 +27,7 @@ from .const import (
     DATA_MANAGER,
     DATA_SCHEDULE,
     DOMAIN,
+    INTEGRATION_VERSION,
     PLATFORMS,
     SERVICE_CREATE_PAIRING,
     SERVICE_LIST_DEVICES,
@@ -46,6 +50,13 @@ from .schedule import CastnCasaScheduleStore
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+_FRONTEND_URL_BASE = "/castncasa/frontend"
+_FRONTEND_DIR = Path(__file__).parent / "frontend"
+_FRONTEND_MODULE_URLS = (
+    f"{_FRONTEND_URL_BASE}/castncasa-time-calendar.js?v={INTEGRATION_VERSION}",
+    f"{_FRONTEND_URL_BASE}/castncasa-calendar-patch.js?v={INTEGRATION_VERSION}",
+)
 
 
 @dataclass(slots=True)
@@ -75,10 +86,22 @@ SET_RESIDENT_COLOR_SCHEMA = probatio.Schema(
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Set up CastnCasa pairing, storage and local API."""
+    """Set up CastnCasa pairing, storage, frontend and local API."""
     domain_data = hass.data.setdefault(DOMAIN, {})
     if DATA_MANAGER in domain_data:
         return True
+
+    await hass.http.async_register_static_paths(
+        [
+            StaticPathConfig(
+                _FRONTEND_URL_BASE,
+                str(_FRONTEND_DIR),
+                cache_headers=True,
+            )
+        ]
+    )
+    for module_url in _FRONTEND_MODULE_URLS:
+        add_extra_js_url(hass, module_url)
 
     manager = CastnCasaPairingManager(hass)
     schedule = CastnCasaScheduleStore(hass)
