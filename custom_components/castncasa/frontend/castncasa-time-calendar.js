@@ -232,7 +232,8 @@ class CastnCasaTimeCalendar extends HTMLElement {
     const text = document.createElement("span");
     text.textContent = label;
     text.style.color = "#fff";
-    text.style.fontWeight = "700";
+    const isDesktop = window.matchMedia?.("(min-width: 1024px)")?.matches === true;
+    text.style.fontWeight = isDesktop ? "800" : "700";
     text.style.lineHeight = "17px";
     text.style.whiteSpace = "nowrap";
     text.style.pointerEvents = "none";
@@ -241,16 +242,16 @@ class CastnCasaTimeCalendar extends HTMLElement {
     text.style.transformOrigin = "center center";
 
     if (widthPct < 10) {
-      text.style.fontSize = "8px";
-      text.style.transform = "scaleX(.55)";
+      text.style.fontSize = isDesktop ? "10px" : "8px";
+      text.style.transform = isDesktop ? "scaleX(.85)" : "scaleX(.55)";
     } else if (widthPct < 18) {
-      text.style.fontSize = "9px";
-      text.style.transform = "scaleX(.75)";
+      text.style.fontSize = isDesktop ? "11px" : "9px";
+      text.style.transform = isDesktop ? "none" : "scaleX(.75)";
     } else if (widthPct < 28) {
-      text.style.fontSize = "10px";
-      text.style.transform = "scaleX(.9)";
+      text.style.fontSize = isDesktop ? "11px" : "10px";
+      text.style.transform = isDesktop ? "none" : "scaleX(.9)";
     } else {
-      text.style.fontSize = "11px";
+      text.style.fontSize = isDesktop ? "12px" : "11px";
       text.style.transform = "none";
     }
 
