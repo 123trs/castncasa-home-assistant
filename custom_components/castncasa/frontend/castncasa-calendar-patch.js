@@ -1,15 +1,11 @@
 customElements.whenDefined("castncasa-time-calendar").then(() => {
   const Card = customElements.get("castncasa-time-calendar");
-  if (!Card || Card.prototype.__castncasaRefreshGuardV7Installed) return;
-  Card.prototype.__castncasaRefreshGuardV7Installed = true;
+  if (!Card || Card.prototype.__castncasaMobilePatchV8Installed) return;
+  Card.prototype.__castncasaMobilePatchV8Installed = true;
 
-  const hassDescriptor = Object.getOwnPropertyDescriptor(Card.prototype, "hass");
-  const originalHassSetter = hassDescriptor?.set;
-  if (!originalHassSetter) return;
-
-  const originalDisconnected = Card.prototype.disconnectedCallback;
   const originalStyleMonthEvent = Card.prototype._styleMonthEvent;
   const originalTuneCalendar = Card.prototype._tuneCalendar;
+  const originalDisconnected = Card.prototype.disconnectedCallback;
 
   const isMobile = () => window.matchMedia?.("(max-width: 700px)")?.matches;
 
@@ -41,9 +37,53 @@ customElements.whenDefined("castncasa-time-calendar").then(() => {
     return { start: start.getTime(), end: end.getTime() };
   };
 
+  const getCalendar = (instance) => {
+    const full = instance?._findDeep?.(instance._card, "ha-full-calendar");
+    return full?.calendar || null;
+  };
+
+  const revisionSignature = (instance) => (instance?._residentInfo || [])
+    .map((item) => {
+      const revision = instance?._hass?.states?.[item.id]?.attributes?.schedule_revision;
+      return `${item.id}:${revision ?? ""}`;
+    })
+    .join("|");
+
+  const sameMonth = (a, b) => a instanceof Date && b instanceof Date
+    && a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth();
+
+  const refetchPreservingMonth = (instance) => {
+    const fc = getCalendar(instance);
+    if (!fc?.refetchEvents) return;
+    const current = fc.getDate?.();
+    const wanted = current instanceof Date ? new Date(current.getTime()) : null;
+    fc.refetchEvents();
+    if (!(wanted instanceof Date)) return;
+    [0, 80, 250, 700].forEach((delay) => {
+      window.setTimeout(() => {
+        const currentCalendar = getCalendar(instance);
+        if (!currentCalendar?.getDate || !currentCalendar?.gotoDate) return;
+        const shown = currentCalendar.getDate();
+        if (!sameMonth(shown, wanted)) currentCalendar.gotoDate(wanted);
+      }, delay);
+    });
+  };
+
+  const ensureRevisionPoll = (instance) => {
+    if (instance.__castncasaRevisionPollTimer) return;
+    instance.__castncasaRevisionSignature = revisionSignature(instance);
+    instance.__castncasaRevisionPollTimer = window.setInterval(() => {
+      if (!instance.isConnected || !instance._hass) return;
+      const signature = revisionSignature(instance);
+      if (!signature || signature === instance.__castncasaRevisionSignature) return;
+      instance.__castncasaRevisionSignature = signature;
+      refetchPreservingMonth(instance);
+    }, 3000);
+  };
+
   const renderMobileStacks = (instance, fc) => {
     if (!isMobile() || !fc) return;
-
     const full = instance?._findDeep?.(instance._card, "ha-full-calendar");
     if (!full) return;
 
@@ -161,15 +201,14 @@ customElements.whenDefined("castncasa-time-calendar").then(() => {
       }
 
       const isResident = this._residentInfo?.some((item) => item.id === entityId);
-      if (isResident) {
-        el.style.setProperty("display", "none", "important");
-      }
+      if (isResident) el.style.setProperty("display", "none", "important");
     };
   }
 
   if (typeof originalTuneCalendar === "function") {
     Card.prototype._tuneCalendar = function() {
       originalTuneCalendar.call(this);
+      ensureRevisionPoll(this);
       if (!isMobile()) return;
       const full = this._findDeep?.(this._card, "ha-full-calendar");
       const fc = full?.calendar;
@@ -178,95 +217,10 @@ customElements.whenDefined("castncasa-time-calendar").then(() => {
     };
   }
 
-  const residentMonthIds = (hass) => Object.keys(hass?.states || {})
-    .filter((id) => id.startsWith("calendar.castncasa_"))
-    .filter((id) => /Abwesenheit Monat$/i.test(hass.states[id]?.attributes?.friendly_name || ""))
-    .sort((a, b) => a.localeCompare(b, "de"));
-
-  const entitySetSignature = (hass) => residentMonthIds(hass).join("|");
-
-  const calendarDataSignature = (hass) => residentMonthIds(hass).map((id) => {
-    const state = hass.states[id];
-    const a = state?.attributes || {};
-    return [id, state?.state || "", state?.last_updated || "", a.message || "", a.start_time || "", a.end_time || ""].join("~");
-  }).join("||");
-
-  const getCalendar = (instance) => {
-    const full = instance?._findDeep?.(instance._card, "ha-full-calendar");
-    return full?.calendar || null;
-  };
-
-  const sameMonth = (a, b) => a instanceof Date && b instanceof Date
-    && a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth();
-
-  const restoreMonth = (instance, wanted) => {
-    if (!(wanted instanceof Date)) return;
-    [0, 80, 250, 700, 1400].forEach((delay) => {
-      window.setTimeout(() => {
-        const fc = getCalendar(instance);
-        if (!fc?.getDate || !fc?.gotoDate) return;
-        const current = fc.getDate();
-        if (!sameMonth(current, wanted)) fc.gotoDate(wanted);
-      }, delay);
-    });
-  };
-
-  const refetchPreservingMonth = (instance) => {
-    const fc = getCalendar(instance);
-    if (!fc?.refetchEvents) return;
-    const current = fc.getDate?.();
-    const wanted = current instanceof Date ? new Date(current.getTime()) : null;
-    if (instance._card) instance._card.style.visibility = "hidden";
-    fc.refetchEvents();
-    restoreMonth(instance, wanted);
-  };
-
-  const ensurePoll = (instance) => {
-    if (instance.__castncasaPollTimer) return;
-    instance.__castncasaPollTimer = window.setInterval(() => {
-      if (!instance.isConnected || !instance._hass) return;
-      const dataSig = calendarDataSignature(instance._hass);
-      if (dataSig === instance.__castncasaAppliedDataSig) return;
-      instance.__castncasaAppliedDataSig = dataSig;
-      refetchPreservingMonth(instance);
-    }, 60000);
-  };
-
-  Object.defineProperty(Card.prototype, "hass", {
-    configurable: true,
-    set(hass) {
-      const setSig = entitySetSignature(hass);
-      const dataSig = calendarDataSignature(hass);
-
-      if (!this.__castncasaGuardInitializedV2) {
-        this.__castncasaGuardInitializedV2 = true;
-        this.__castncasaEntitySetSigV2 = setSig;
-        this.__castncasaAppliedDataSig = dataSig;
-        originalHassSetter.call(this, hass);
-        ensurePoll(this);
-        return;
-      }
-
-      this._hass = hass;
-      ensurePoll(this);
-
-      if (setSig !== this.__castncasaEntitySetSigV2) {
-        const fc = getCalendar(this);
-        const current = fc?.getDate?.();
-        const wanted = current instanceof Date ? new Date(current.getTime()) : null;
-        this.__castncasaEntitySetSigV2 = setSig;
-        this.__castncasaAppliedDataSig = dataSig;
-        originalHassSetter.call(this, hass);
-        restoreMonth(this, wanted);
-      }
-    }
-  });
-
   Card.prototype.disconnectedCallback = function() {
-    if (this.__castncasaPollTimer) {
-      window.clearInterval(this.__castncasaPollTimer);
-      this.__castncasaPollTimer = null;
+    if (this.__castncasaRevisionPollTimer) {
+      window.clearInterval(this.__castncasaRevisionPollTimer);
+      this.__castncasaRevisionPollTimer = null;
     }
     if (typeof originalDisconnected === "function") originalDisconnected.call(this);
   };
