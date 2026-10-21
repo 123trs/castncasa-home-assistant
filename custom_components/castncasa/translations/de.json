@@ -17,7 +17,7 @@
         "title": "CastnCasa verwalten",
         "description": "Bewohner und gekoppelte CastnCasa-Apps verwalten.",
         "menu_options": {
-          "pair_resident": "Neuen Bewohner koppeln",
+          "pair_resident": "Bewohner koppeln",
           "presence_settings": "Präsenz zuordnen",
           "heat_settings": "Heat-Einstellungen"
         },
@@ -28,7 +28,14 @@
         }
       },
       "pair_resident": {
-        "title": "Neuen Bewohner koppeln",
+        "title": "Bewohner koppeln",
+        "description": "Wähle **Neuer Bewohner**, wenn diese Person noch nicht in CastnCasa vorhanden ist. Nach App-Wechsel, Neuinstallation oder verlorener Kopplung wähle den vorhandenen Bewohner mit **wieder verbinden**. Dadurch bleiben Name, Schichten und Home-Assistant-Entitäten erhalten.",
+        "data": {
+          "resident_id": "Bewohner / Wiederherstellung"
+        }
+      },
+      "pair_resident_qr": {
+        "title": "CastnCasa koppeln",
         "description": "Scanne den QR-Code direkt hier mit **CastnCasa → Einstellungen → Home Assistant → Mit Home Assistant verbinden**.\n\n![CastnCasa QR-Code]({pairing_qr_url})\n\nFalls du den QR-Code lieber groß öffnen möchtest: [Pairing-Seite öffnen]({pairing_url}).\n\nDer QR-Code ist einmalig und **5 Minuten gültig**."
       },
       "presence_settings": {
@@ -58,7 +65,8 @@
       }
     },
     "abort": {
-      "no_residents": "Es ist noch kein CastnCasa-Bewohner gekoppelt."
+      "no_residents": "Es ist noch kein CastnCasa-Bewohner gekoppelt.",
+      "resident_not_found": "Der ausgewählte CastnCasa-Bewohner ist nicht mehr vorhanden."
     }
   }
 }
