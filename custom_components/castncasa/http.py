@@ -294,8 +294,15 @@ class CastnCasaPairClaimView(HomeAssistantView):
         except PairingError:
             return web.json_response({"error": "pairing_failed"}, status=401)
 
+        resident_id = str(result.get("resident_id") or data["device_id"])
         return web.json_response(
-            {"ok": True, "device_id": data["device_id"], **result},
+            {
+                "ok": True,
+                "device_id": data["device_id"],
+                "resident_id": resident_id,
+                "resident_relinked": resident_id != data["device_id"],
+                **result,
+            },
             headers={"Cache-Control": "no-store"},
         )
 
@@ -359,11 +366,12 @@ class CastnCasaScheduleView(HomeAssistantView):
             device_id, record = await _authenticate(self.manager, request, SCHEDULE_PATH)
         except DeviceAuthError:
             return web.json_response({"error": "invalid_auth"}, status=401)
+        resident_id = str(record.get("resident_id") or device_id)
         return _encrypted_json_response(
             record,
             request,
             SCHEDULE_PATH,
-            {"ok": True, "api_version": 1, **self.schedule.resident_payload(device_id)},
+            {"ok": True, "api_version": 1, **self.schedule.resident_payload(resident_id)},
         )
 
     async def put(self, request: web.Request) -> web.Response:
@@ -396,14 +404,15 @@ class CastnCasaScheduleView(HomeAssistantView):
                 {"error": "invalid_request"},
                 status=400,
             )
+        resident_id = str(record.get("resident_id") or device_id)
         try:
-            result = await self.schedule.async_replace_resident(device_id, data)
+            result = await self.schedule.async_replace_resident(resident_id, data)
         except ScheduleConflictError:
             return _encrypted_json_response(
                 record,
                 request,
                 SCHEDULE_PATH,
-                {"error": "revision_conflict", **self.schedule.resident_payload(device_id)},
+                {"error": "revision_conflict", **self.schedule.resident_payload(resident_id)},
                 status=409,
             )
         except ScheduleValidationError as err:
@@ -428,7 +437,8 @@ class CastnCasaScheduleView(HomeAssistantView):
         except DeviceAuthError:
             return web.json_response({"error": "invalid_auth"}, status=401)
 
-        resident_removed = await self.schedule.async_remove_resident(device_id)
+        resident_id = str(record.get("resident_id") or device_id)
+        resident_removed = await self.schedule.async_remove_resident(resident_id)
         device_revoked = await self.manager.revoke_device(device_id)
         return _encrypted_json_response(
             record,

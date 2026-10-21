@@ -81,6 +81,12 @@ class CastnCasaOptionsFlow(OptionsFlow):
         current = dict(self.config_entry.options)
         mappings_value = current.get(CONF_PRESENCE_ENTITIES, {})
         mappings = dict(mappings_value) if isinstance(mappings_value, dict) else {}
+        active_resident_ids = {str(resident["id"]) for resident in residents}
+        mappings = {
+            resident_id: entity_id
+            for resident_id, entity_id in mappings.items()
+            if resident_id in active_resident_ids
+        }
 
         if user_input is not None:
             resident_id = str(user_input["resident_id"])
@@ -135,22 +141,64 @@ class CastnCasaOptionsFlow(OptionsFlow):
     async def async_step_pair_resident(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Create and show a one-time resident pairing link."""
+        """Choose whether to add a new resident or relink an existing one."""
+        schedule = self.hass.data[DOMAIN][DATA_SCHEDULE]
+        residents = schedule.residents()
+
+        if user_input is not None:
+            selected = str(user_input.get("resident_id", "__new__"))
+            resident_id = None if selected == "__new__" else selected
+            if resident_id is not None and not any(
+                str(resident["id"]) == resident_id for resident in residents
+            ):
+                return self.async_abort(reason="resident_not_found")
+
+            manager: CastnCasaPairingManager = self.hass.data[DOMAIN][DATA_MANAGER]
+            base_url = network.get_url(
+                self.hass,
+                allow_internal=True,
+                allow_external=True,
+                allow_cloud=True,
+                prefer_external=True,
+            ).rstrip("/")
+            self._castncasa_pairing_session = manager.create_pairing(base_url, resident_id)
+            return await self.async_step_pair_resident_qr()
+
+        resident_options = [
+            selector.SelectOptionDict(value="__new__", label="Neuer Bewohner")
+        ] + [
+            selector.SelectOptionDict(
+                value=str(resident["id"]),
+                label=f"{resident['name']} wieder verbinden",
+            )
+            for resident in residents
+        ]
+        return self.async_show_form(
+            step_id="pair_resident",
+            data_schema=probatio.Schema(
+                {
+                    probatio.Required("resident_id", default="__new__"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=resident_options,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_pair_resident_qr(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the one-time resident pairing link after the target was chosen."""
         if user_input is not None:
             return self.async_create_entry(data=dict(self.config_entry.options))
 
-        manager: CastnCasaPairingManager = self.hass.data[DOMAIN][DATA_MANAGER]
-        base_url = network.get_url(
-            self.hass,
-            allow_internal=True,
-            allow_external=True,
-            allow_cloud=True,
-            prefer_external=True,
-        ).rstrip("/")
-        session = manager.create_pairing(base_url)
-
+        session = getattr(self, "_castncasa_pairing_session", None)
+        if session is None:
+            return await self.async_step_pair_resident()
         return self.async_show_form(
-            step_id="pair_resident",
+            step_id="pair_resident_qr",
             data_schema=probatio.Schema({}),
             description_placeholders={
                 "pairing_url": session.pairing_page_url,

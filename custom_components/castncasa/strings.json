@@ -17,7 +17,7 @@
         "title": "Manage CastnCasa",
         "description": "Manage residents and paired CastnCasa apps.",
         "menu_options": {
-          "pair_resident": "Pair a new resident",
+          "pair_resident": "Pair a resident",
           "presence_settings": "Map presence",
           "heat_settings": "Heat settings"
         },
@@ -28,7 +28,14 @@
         }
       },
       "pair_resident": {
-        "title": "Pair a new resident",
+        "title": "Pair a resident",
+        "description": "Choose **New resident** for a person not yet stored in CastnCasa. After an app change, reinstall, or lost pairing, choose the existing resident with **reconnect** so the name, shifts, and Home Assistant entities are preserved.",
+        "data": {
+          "resident_id": "Resident / recovery"
+        }
+      },
+      "pair_resident_qr": {
+        "title": "Pair CastnCasa",
         "description": "Scan the QR code directly here with **CastnCasa → Settings → Home Assistant → Connect to Home Assistant**.\n\n![CastnCasa QR code]({pairing_qr_url})\n\nTo open it larger, use the [pairing page]({pairing_url}).\n\nThe QR code can only be used once and is valid for **5 minutes**."
       },
       "presence_settings": {
@@ -58,7 +65,8 @@
       }
     },
     "abort": {
-      "no_residents": "No CastnCasa resident is paired yet."
+      "no_residents": "No CastnCasa resident is paired yet.",
+      "resident_not_found": "The selected CastnCasa resident no longer exists."
     }
   }
 }

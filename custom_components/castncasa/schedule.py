@@ -525,6 +525,7 @@ class CastnCasaScheduleStore:
                 "id": resident["id"],
                 "name": resident["name"],
                 "color": resident["color"],
+                "color_auto": not bool(resident.get("color_locked", False)),
                 "active": bool(resident.get("active", True)),
             },
             "profiles": list(resident.get("profiles", {}).values()),

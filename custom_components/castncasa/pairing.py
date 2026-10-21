@@ -43,6 +43,7 @@ class PairingSession:
     base_url: str
     created_at: datetime
     expires_at: datetime
+    resident_id: str | None = None
     attempts: int = 0
 
     @property
@@ -120,9 +121,23 @@ class CastnCasaPairingManager:
             listener()
 
     def device_metadata(self, device_id: str) -> dict[str, Any]:
-        record = self._devices.get(device_id, {})
+        record = self._devices.get(device_id)
+        actual_device_id = device_id
+        if record is None:
+            matches = [
+                (candidate_id, candidate)
+                for candidate_id, candidate in self._devices.items()
+                if str(candidate.get("resident_id") or candidate_id) == device_id
+            ]
+            if matches:
+                actual_device_id, record = max(
+                    matches,
+                    key=lambda item: str(item[1].get("last_seen") or item[1].get("created_at") or ""),
+                )
+        record = record or {}
         return {
-            "device_id": device_id,
+            "device_id": actual_device_id,
+            "resident_id": str(record.get("resident_id") or device_id),
             "device_name": record.get("device_name", "CastnCasa"),
             "app_version": record.get("app_version", ""),
             "created_at": record.get("created_at"),
@@ -155,7 +170,7 @@ class CastnCasaPairingManager:
         for key in [key for key, value in self._pairings.items() if value.expires_at <= now]:
             self._pairings.pop(key, None)
 
-    def create_pairing(self, base_url: str) -> PairingSession:
+    def create_pairing(self, base_url: str, resident_id: str | None = None) -> PairingSession:
         self._cleanup_pairings()
         now = _utcnow()
         session = PairingSession(
@@ -164,6 +179,7 @@ class CastnCasaPairingManager:
             base_url=base_url.rstrip("/"),
             created_at=now,
             expires_at=now + timedelta(seconds=PAIRING_TTL_SECONDS),
+            resident_id=resident_id,
         )
         self._pairings[session.pairing_id] = session
         return session
@@ -228,8 +244,26 @@ class CastnCasaPairingManager:
         api_key = derive_api_key(token)
 
         now = _utcnow().isoformat()
+        # A stable phone/device id is the resident recovery key. If the app
+        # loses only its connection token during an update/reinstall, a new
+        # pairing with the same device id must reattach to the previous
+        # resident instead of silently creating a second resident.
+        existing_device = self._devices.get(device_id)
+        previous_resident_id = (
+            str(existing_device.get("resident_id") or device_id)
+            if existing_device is not None
+            else None
+        )
+        resident_id = session.resident_id or previous_resident_id or device_id
+        for existing_id, existing in list(self._devices.items()):
+            if existing_id == device_id:
+                continue
+            if str(existing.get("resident_id") or existing_id) == resident_id:
+                self._devices.pop(existing_id, None)
+                self._nonces.pop(existing_id, None)
         self._devices[device_id] = {
             "device_id": device_id,
+            "resident_id": resident_id,
             "device_name": device_name[:80],
             "app_version": app_version[:32],
             "created_at": now,
@@ -245,6 +279,7 @@ class CastnCasaPairingManager:
             "encrypted_token": encrypted_token,
             "tag": tag,
             "token_format": "castncasa-device-v1",
+            "resident_id": resident_id,
         }
 
     def _register_failed_attempt(self, session: PairingSession) -> None:
@@ -259,6 +294,21 @@ class CastnCasaPairingManager:
         await self._async_save()
         self._notify()
         return True
+
+    async def revoke_resident_devices(self, resident_id: str) -> int:
+        """Revoke every paired app device that belongs to one resident."""
+        device_ids = [
+            device_id
+            for device_id, record in self._devices.items()
+            if str(record.get("resident_id") or device_id) == resident_id
+        ]
+        for device_id in device_ids:
+            self._devices.pop(device_id, None)
+            self._nonces.pop(device_id, None)
+        if device_ids:
+            await self._async_save()
+            self._notify()
+        return len(device_ids)
 
     def list_devices(self) -> list[dict[str, Any]]:
         return [

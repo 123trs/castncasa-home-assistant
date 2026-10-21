@@ -172,20 +172,29 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def async_revoke_device(call: ServiceCall) -> ServiceResponse:
         device_id = str(call.data["device_id"])
-        resident_removed = await schedule.async_remove_resident(device_id)
-        revoked = await manager.revoke_device(device_id)
+        metadata = manager.device_metadata(device_id)
+        resident_id = str(metadata.get("resident_id") or device_id)
+        resident_removed = await schedule.async_remove_resident(resident_id)
+        # A resident may have been re-paired from another phone or after an app
+        # reinstall. Deleting the resident must revoke every device identity that
+        # points at that resident, not just the device used for this request.
+        revoked_devices = await manager.revoke_resident_devices(resident_id)
         return {
             "device_id": device_id,
-            "revoked": revoked,
+            "resident_id": resident_id,
+            "revoked": revoked_devices > 0,
+            "revoked_devices": revoked_devices,
             "resident_removed": resident_removed,
         }
 
     async def async_set_resident_color(call: ServiceCall) -> ServiceResponse:
         device_id = str(call.data["device_id"])
+        resident_id = str(manager.device_metadata(device_id).get("resident_id") or device_id)
         color = str(call.data["color"])
-        updated = await schedule.async_set_resident_color(device_id, color)
+        updated = await schedule.async_set_resident_color(resident_id, color)
         return {
             "device_id": device_id,
+            "resident_id": resident_id,
             "color": color.upper(),
             "updated": updated,
         }
@@ -325,7 +334,7 @@ async def async_remove_config_entry_device(
 
     manager: CastnCasaPairingManager = hass.data[DOMAIN][DATA_MANAGER]
     await schedule.async_remove_resident(resident_id)
-    await manager.revoke_device(resident_id)
+    await manager.revoke_resident_devices(resident_id)
 
     # Removing the resident normally triggers _remove_departed_resident_devices.
     # Explicitly clear any remaining registry entities too so stale/orphaned
