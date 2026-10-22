@@ -211,6 +211,83 @@ class CastnCasaTimeCalendar extends HTMLElement {
     return value.split(/\s+/)[0];
   }
 
+  _dayKey(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (!Number.isFinite(date?.getTime?.())) return "";
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  }
+
+  _offsetDayKey(value, delta) {
+    const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+    if (!Number.isFinite(date?.getTime?.())) return "";
+    date.setDate(date.getDate() + delta);
+    return this._dayKey(date);
+  }
+
+  _previousOvernightEvent(fc, entityId, day) {
+    if (!fc || !entityId || !(day instanceof Date)) return null;
+    const previousKey = this._offsetDayKey(day, -1);
+    try {
+      return (fc.getEvents?.() || []).find((event) => {
+        if (event.extendedProps?.castncasaCarry === true) return false;
+        if (event.extendedProps?.calendar !== entityId) return false;
+        if (this._dayKey(event.start) !== previousKey) return false;
+        const range = this._parseTimeRange(event.title);
+        return !!range && range.end <= range.start;
+      }) || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _syncOvernightCarries(fc) {
+    if (!fc || typeof fc.getEvents !== "function" || typeof fc.addEvent !== "function") return false;
+    const residentIds = new Set(this._residentInfo.map((item) => item.id));
+    const events = fc.getEvents();
+    const regular = events.filter((event) => residentIds.has(event.extendedProps?.calendar) && event.extendedProps?.castncasaCarry !== true);
+    const occupied = new Set(regular.map((event) => `${event.extendedProps?.calendar}|${this._dayKey(event.start)}`));
+    const desired = new Map();
+
+    regular.forEach((event) => {
+      const range = this._parseTimeRange(event.title);
+      if (!range || range.end > range.start) return;
+      const entityId = event.extendedProps?.calendar;
+      const originKey = this._dayKey(event.start);
+      const nextKey = this._offsetDayKey(event.start, 1);
+      if (!entityId || !originKey || !nextKey || occupied.has(`${entityId}|${nextKey}`)) return;
+      const id = `castncasa-carry:${entityId}:${nextKey}`;
+      desired.set(id, {
+        id,
+        title: event.title,
+        start: nextKey,
+        end: this._offsetDayKey(event.start, 2),
+        allDay: true,
+        backgroundColor: event.backgroundColor || event.borderColor || "#607d8b",
+        borderColor: event.borderColor || event.backgroundColor || "#607d8b",
+        extendedProps: {
+          calendar: entityId,
+          castncasaCarry: true,
+          castncasaCarryOrigin: originKey,
+        },
+      });
+    });
+
+    let changed = false;
+    events.filter((event) => event.extendedProps?.castncasaCarry === true).forEach((event) => {
+      if (!desired.has(event.id)) {
+        event.remove();
+        changed = true;
+      } else {
+        desired.delete(event.id);
+      }
+    });
+    desired.forEach((event) => {
+      fc.addEvent(event);
+      changed = true;
+    });
+    return changed;
+  }
+
   _addSegment(el, leftPct, widthPct, color, label) {
     const segment = document.createElement("div");
     segment.className = "castncasa-timebar-segment";
@@ -263,8 +340,10 @@ class CastnCasaTimeCalendar extends HTMLElement {
     if (!info?.el || !info?.event) return;
 
     const el = info.el;
-    const entityId = info.event.extendedProps?.calendar || "";
+    const props = info.event.extendedProps || {};
+    const entityId = props.calendar || "";
     const isResident = this._residentInfo.some((item) => item.id === entityId);
+    const isCarry = props.castncasaCarry === true;
     const color = info.event.backgroundColor || info.event.borderColor || "#607d8b";
 
     el.style.setProperty("border-radius", "7px", "important");
@@ -273,7 +352,7 @@ class CastnCasaTimeCalendar extends HTMLElement {
 
     const monthBounds = this._visibleMonthBounds(this._hookedCalendar);
     const eventStart = info.event.start?.getTime?.();
-    if (monthBounds && Number.isFinite(eventStart) && (eventStart < monthBounds.start || eventStart >= monthBounds.end)) {
+    if (!isCarry && monthBounds && Number.isFinite(eventStart) && (eventStart < monthBounds.start || eventStart >= monthBounds.end)) {
       el.style.setProperty("display", "none", "important");
       return;
     }
@@ -303,12 +382,25 @@ class CastnCasaTimeCalendar extends HTMLElement {
 
     const startPct = (range.start / 1440) * 100;
     const endPct = (range.end / 1440) * 100;
-    const overnight = range.end <= range.start;
 
+    if (isCarry) {
+      this._addSegment(el, 0, endPct, color, label);
+      return;
+    }
+
+    const previous = this._previousOvernightEvent(this._hookedCalendar, entityId, info.event.start);
+    if (previous) {
+      const previousRange = this._parseTimeRange(previous.title);
+      if (previousRange) {
+        const previousColor = previous.backgroundColor || previous.borderColor || color;
+        this._addSegment(el, 0, (previousRange.end / 1440) * 100, previousColor, this._shortCode(previous.title));
+      }
+    }
+
+    const overnight = range.end <= range.start;
     if (!overnight) {
       this._addSegment(el, startPct, endPct - startPct, color, label);
     } else {
-      this._addSegment(el, 0, endPct, color, label);
       this._addSegment(el, startPct, 100 - startPct, color, label);
     }
   }
@@ -328,6 +420,7 @@ class CastnCasaTimeCalendar extends HTMLElement {
 
     try {
       for (const event of fc.getEvents?.() || []) {
+        if (event.extendedProps?.castncasaCarry === true) continue;
         const entityId = event.extendedProps?.calendar;
         if (!entries.has(entityId)) continue;
 
@@ -388,6 +481,7 @@ class CastnCasaTimeCalendar extends HTMLElement {
         fc.setOption("eventsSet", () => window.setTimeout(() => this._tuneCalendar(), 0));
         if (typeof fc.rerenderEvents === "function") fc.rerenderEvents();
       }
+      this._syncOvernightCarries(fc);
       fc.updateSize?.();
     }
 
