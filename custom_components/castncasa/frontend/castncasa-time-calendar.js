@@ -350,14 +350,6 @@ class CastnCasaTimeCalendar extends HTMLElement {
 
     if (!isResident) return;
 
-    const monthBounds = this._visibleMonthBounds(this._hookedCalendar);
-    const eventStart = info.event.start?.getTime?.();
-    if (!isCarry && monthBounds && Number.isFinite(eventStart) && (eventStart < monthBounds.start || eventStart >= monthBounds.end)) {
-      el.style.setProperty("display", "none", "important");
-      return;
-    }
-    el.style.removeProperty("display");
-
     const label = this._shortCode(info.event.title);
     const range = this._parseTimeRange(info.event.title);
 
