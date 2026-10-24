@@ -2,7 +2,20 @@
 
 <p align="center"><img src="custom_components/castncasa/brand/logo.png" alt="CastnCasa" width="512"></p>
 
-CastnCasa brings household shift and absence forecasts from the CastnCasa Android app into Home Assistant and combines them with real resident presence.
+**CastnCasa is the shift and presence calendar for Home Assistant.** The Android app combines an easy-to-use monthly shift calendar with direct Home Assistant synchronization, resident presence and absence forecasts, and data that can be used for smart heating and other automations.
+
+**One-time purchase. No subscription. No CastnCasa cloud required for household schedule or presence data.**
+
+Instead of treating the calendar as an isolated planner, CastnCasa turns it into useful Home Assistant data: when someone is expected to leave, when the household will probably be empty, and when a resident is expected back home. Actual presence always has priority over the schedule forecast.
+
+Typical use cases include:
+
+- reduce heating during longer planned absences and start reheating before the expected return,
+- use upcoming departures and returns in Home Assistant automations,
+- combine several residents into one household absence forecast,
+- keep shift and presence data local between the Android app and Home Assistant.
+
+Product website: https://wattzahls.de/castncasa/
 
 ## What the integration provides
 
