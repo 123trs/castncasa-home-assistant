@@ -13,9 +13,11 @@ from typing import Any, Mapping
 
 from .const import (
     CONF_HEAT_COMFORT_BUFFER_MINUTES,
+    CONF_HEAT_MIN_COMFORT_MINUTES,
     CONF_HEAT_MIN_EMPTY_MINUTES,
     CONF_HEAT_REHEAT_LEAD_MINUTES,
     DEFAULT_HEAT_COMFORT_BUFFER_MINUTES,
+    DEFAULT_HEAT_MIN_COMFORT_MINUTES,
     DEFAULT_HEAT_MIN_EMPTY_MINUTES,
     DEFAULT_HEAT_REHEAT_LEAD_MINUTES,
 )
@@ -32,6 +34,7 @@ class HeatSettings:
     min_empty_minutes: int = DEFAULT_HEAT_MIN_EMPTY_MINUTES
     reheat_lead_minutes: int = DEFAULT_HEAT_REHEAT_LEAD_MINUTES
     comfort_buffer_minutes: int = DEFAULT_HEAT_COMFORT_BUFFER_MINUTES
+    min_comfort_minutes: int = DEFAULT_HEAT_MIN_COMFORT_MINUTES
 
     @classmethod
     def from_options(cls, options: Mapping[str, Any]) -> "HeatSettings":
@@ -47,6 +50,12 @@ class HeatSettings:
                 options.get(
                     CONF_HEAT_COMFORT_BUFFER_MINUTES,
                     DEFAULT_HEAT_COMFORT_BUFFER_MINUTES,
+                )
+            ),
+            min_comfort_minutes=int(
+                options.get(
+                    CONF_HEAT_MIN_COMFORT_MINUTES,
+                    DEFAULT_HEAT_MIN_COMFORT_MINUTES,
                 )
             ),
         )
@@ -85,6 +94,18 @@ def calculate_heat_forecast(
         if reduction_window_usable:
             reheat_from = candidate
 
+    time_until_empty_minutes: int | None = None
+    if empty_from is not None and empty_from > now:
+        seconds = max(0.0, (empty_from - now).total_seconds())
+        time_until_empty_minutes = int(math.ceil(seconds / 60))
+
+    hold_reduction_recommended = (
+        presence_override_home
+        and reduction_window_usable
+        and time_until_empty_minutes is not None
+        and time_until_empty_minutes < settings.min_comfort_minutes
+    )
+
     time_until_home_minutes: int | None = None
     if current_empty and empty_until is not None:
         seconds = max(0.0, (empty_until - now).total_seconds())
@@ -102,9 +123,11 @@ def calculate_heat_forecast(
 
     return {
         "empty_duration_minutes": duration_minutes,
+        "time_until_empty_minutes": time_until_empty_minutes,
         "time_until_home_minutes": time_until_home_minutes,
         "recommended_mode": recommended_mode,
         "lowering_recommended": recommended_mode == "reduziert",
+        "hold_reduction_recommended": hold_reduction_recommended,
         "reheat_from": reheat_from,
         "reheating": recommended_mode == "wiederaufheizen",
         "forecast_status": forecast_status,
@@ -113,6 +136,7 @@ def calculate_heat_forecast(
         "min_empty_minutes": settings.min_empty_minutes,
         "reheat_lead_minutes": settings.reheat_lead_minutes,
         "comfort_buffer_minutes": settings.comfort_buffer_minutes,
+        "min_comfort_minutes": settings.min_comfort_minutes,
         "next_house_empty_from": household.get("next_house_empty_from"),
         "next_house_empty_until": household.get("next_house_empty_until"),
         "presence_override_home": presence_override_home,
