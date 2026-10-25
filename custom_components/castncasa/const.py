@@ -3,7 +3,7 @@
 from homeassistant.const import Platform
 
 DOMAIN = "castncasa"
-INTEGRATION_VERSION = "1.0.19"
+INTEGRATION_VERSION = "1.0.20"
 DATA_MANAGER = "manager"
 DATA_SCHEDULE = "schedule"
 DATA_PRESENCE = "presence"
@@ -13,10 +13,12 @@ CONF_PRESENCE_ENTITIES = "presence_entities"
 CONF_HEAT_MIN_EMPTY_MINUTES = "heat_min_empty_minutes"
 CONF_HEAT_REHEAT_LEAD_MINUTES = "heat_reheat_lead_minutes"
 CONF_HEAT_COMFORT_BUFFER_MINUTES = "heat_comfort_buffer_minutes"
+CONF_HEAT_MIN_COMFORT_MINUTES = "heat_min_comfort_minutes"
 
 DEFAULT_HEAT_MIN_EMPTY_MINUTES = 120
 DEFAULT_HEAT_REHEAT_LEAD_MINUTES = 60
 DEFAULT_HEAT_COMFORT_BUFFER_MINUTES = 15
+DEFAULT_HEAT_MIN_COMFORT_MINUTES = 120
 
 STORAGE_VERSION = 1
 STORAGE_KEY = "castncasa.devices"
