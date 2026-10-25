@@ -32,6 +32,7 @@ async def async_setup_entry(
         HouseholdEmptySensor(coordinator, instance_id),
         HouseholdEffectiveEmptySensor(coordinator, instance_id),
         HeatRecommendationBinarySensor(coordinator, instance_id, heat_settings, "lowering_recommended", "Absenkung empfohlen", "mdi:thermometer-chevron-down"),
+        HeatRecommendationBinarySensor(coordinator, instance_id, heat_settings, "hold_reduction_recommended", "Absenkung halten", "mdi:thermometer-lock"),
         HeatRecommendationBinarySensor(coordinator, instance_id, heat_settings, "reheating", "Wiederaufheizen", "mdi:radiator"),
     ]
     for resident in residents:
@@ -195,7 +196,9 @@ class HeatRecommendationBinarySensor(CastnCasaHeatEntity, BinarySensorEntity):
             "module": "CastnCasa Heat 1.0",
             "recommended_mode": heat["recommended_mode"],
             "reheat_from": heat["reheat_from"].isoformat() if heat["reheat_from"] else None,
+            "time_until_empty_minutes": heat["time_until_empty_minutes"],
             "min_empty_minutes": heat["min_empty_minutes"],
+            "min_comfort_minutes": heat["min_comfort_minutes"],
             "reheat_lead_minutes": heat["reheat_lead_minutes"],
             "comfort_buffer_minutes": heat["comfort_buffer_minutes"],
             "priority": heat["priority"],
