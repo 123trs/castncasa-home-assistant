@@ -11,6 +11,7 @@ Instead of treating the calendar as an isolated planner, CastnCasa turns it into
 Typical use cases include:
 
 - reduce heating during longer planned absences and start reheating before the expected return,
+- avoid briefly reheating an already reduced house when another useful empty period is about to begin,
 - use upcoming departures and returns in Home Assistant automations,
 - combine several residents into one household absence forecast,
 - keep shift and presence data local between the Android app and Home Assistant.
@@ -21,7 +22,14 @@ Product website: https://wattzahls.de/castncasa/
 
 A fresh installation creates household forecast/presence entities, public-holiday and weekend calendars, and the CastnCasa Heat 1.0 recommendation entities. Each paired resident adds eleven resident-specific entities, including planned absence, actual presence, last seen, next departure, expected return and plan deviation.
 
-CastnCasa keeps **planned** and **effective** absence separate. Actual Home Assistant presence has priority, followed by a fresh CastnCasa app presence heartbeat; the duty-plan forecast is the fallback. CastnCasa Heat recommends `komfort`, `reduziert`, or `wiederaufheizen`, but it does not switch heating equipment by itself. Confirmed presence always forces the recommendation back to comfort.
+CastnCasa keeps **planned** and **effective** absence separate. Actual Home Assistant presence has priority, followed by a fresh CastnCasa app presence heartbeat; the duty-plan forecast is the fallback. CastnCasa Heat recommends `komfort`, `reduziert`, or `wiederaufheizen`, but it does not switch heating equipment by itself. It also publishes **Absenkung halten** when a sufficiently long shared empty period will start before the configured **Mindest-Komfortphase** has elapsed. This signal is intended to keep an already active reduction in place; it does not recommend lowering the heating early solely because departure is approaching. Confirmed actual presence still has priority over an absence forecast.
+
+The Heat settings are:
+
+- **Minimum empty period**: how long a shared household absence must last before reduction is useful.
+- **Reheat lead time**: when normal reheating should start before the expected return.
+- **Comfort buffer**: additional safety time before the expected return.
+- **Minimum comfort period**: minimum useful occupied period before an already reduced heating system should be brought back to comfort.
 
 ## Installation with HACS
 
