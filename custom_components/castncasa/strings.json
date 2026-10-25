@@ -24,7 +24,7 @@
         "menu_option_descriptions": {
           "pair_resident": "Opens the pairing page directly from the CastnCasa integration and creates a one-time QR code.",
           "presence_settings": "Maps a resident to a Home Assistant person or device tracker. A person with the same name is detected automatically.",
-          "heat_settings": "Thresholds for heating forecast and reheating recommendations."
+          "heat_settings": "Thresholds for heating forecast, short comfort periods, and reheating recommendations."
         }
       },
       "pair_resident": {
@@ -55,12 +55,14 @@
         "data": {
           "heat_min_empty_minutes": "Minimum empty period (minutes)",
           "heat_reheat_lead_minutes": "Reheat lead time (minutes)",
-          "heat_comfort_buffer_minutes": "Comfort buffer (minutes)"
+          "heat_comfort_buffer_minutes": "Comfort buffer (minutes)",
+          "heat_min_comfort_minutes": "Minimum comfort period (minutes)"
         },
         "data_description": {
           "heat_min_empty_minutes": "Reduction is only recommended for empty periods at least this long.",
           "heat_reheat_lead_minutes": "Fixed lead time before expected return; adaptive lead time will follow with Heat AI.",
-          "heat_comfort_buffer_minutes": "Additional safety/comfort buffer before the expected return."
+          "heat_comfort_buffer_minutes": "Additional safety/comfort buffer before the expected return.",
+          "heat_min_comfort_minutes": "If the next useful empty period starts sooner than this, CastnCasa recommends keeping an already active reduction instead of heating up briefly. It never recommends reducing early solely because departure is approaching."
         }
       }
     },
