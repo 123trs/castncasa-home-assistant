@@ -24,7 +24,7 @@
         "menu_option_descriptions": {
           "pair_resident": "Öffnet die Koppelseite direkt in der CastnCasa-Integration und erzeugt einen einmaligen QR-Code.",
           "presence_settings": "Ordnet einen Bewohner einer Home-Assistant-Person oder einem Device-Tracker zu. Bei gleichem Namen wird eine Person automatisch erkannt.",
-          "heat_settings": "Schwellwerte für die Heizungs-Prognose und Wiederaufheiz-Empfehlung."
+          "heat_settings": "Schwellwerte für Heizungs-Prognose, kurze Komfortphasen und Wiederaufheiz-Empfehlung."
         }
       },
       "pair_resident": {
@@ -55,12 +55,14 @@
         "data": {
           "heat_min_empty_minutes": "Mindest-Leerphase (Minuten)",
           "heat_reheat_lead_minutes": "Wiederaufheiz-Vorlauf (Minuten)",
-          "heat_comfort_buffer_minutes": "Komfortpuffer (Minuten)"
+          "heat_comfort_buffer_minutes": "Komfortpuffer (Minuten)",
+          "heat_min_comfort_minutes": "Mindest-Komfortphase (Minuten)"
         },
         "data_description": {
           "heat_min_empty_minutes": "Erst ab dieser geplanten Leerphase wird Absenkung empfohlen.",
           "heat_reheat_lead_minutes": "Feste Vorlaufzeit vor der erwarteten Heimkehr; lernende Vorlaufzeit folgt später mit Heat AI.",
-          "heat_comfort_buffer_minutes": "Zusätzlicher Sicherheits-/Komfortpuffer vor der erwarteten Heimkehr."
+          "heat_comfort_buffer_minutes": "Zusätzlicher Sicherheits-/Komfortpuffer vor der erwarteten Heimkehr.",
+          "heat_min_comfort_minutes": "Beginnt die nächste sinnvolle Leerphase früher, empfiehlt CastnCasa, eine bereits aktive Absenkung beizubehalten statt nur kurz aufzuheizen. Allein wegen einer nahenden Abfahrt wird nicht vorzeitig abgesenkt."
         }
       }
     },
