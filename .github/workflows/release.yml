@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.15
+name: Release CastnCasa Home Assistant 1.0.20
 
 on:
   push:
@@ -16,43 +16,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify CastnCasa 1.0.15 release state
+      - name: Verify CastnCasa 1.0.20 release state
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           manifest = json.loads(Path("custom_components/castncasa/manifest.json").read_text())
-          if manifest.get("version") != "1.0.15":
+          if manifest.get("version") != "1.0.20":
               raise SystemExit(f"Unexpected manifest version: {manifest.get('version')}")
-          if "lovelace" not in manifest.get("dependencies", []):
-              raise SystemExit("manifest is missing the Lovelace dependency")
 
           const = Path("custom_components/castncasa/const.py").read_text()
-          if 'INTEGRATION_VERSION = "1.0.15"' not in const:
-              raise SystemExit("const.py is not at 1.0.15")
+          if 'INTEGRATION_VERSION = "1.0.20"' not in const:
+              raise SystemExit("const.py is not at 1.0.20")
 
-          for path in (
-              "custom_components/castncasa/frontend/castncasa-time-calendar.js",
-              "custom_components/castncasa/frontend/castncasa-calendar-patch.js",
-              "custom_components/castncasa/frontend/castncasa-desktop-text.js",
-          ):
-              if not Path(path).is_file():
-                  raise SystemExit(f"Missing frontend release file: {path}")
+          heat = Path("custom_components/castncasa/heat.py").read_text()
+          if "hold_reduction_recommended" not in heat:
+              raise SystemExit("Heat hold-reduction recommendation is missing")
+          if "min_comfort_minutes" not in heat:
+              raise SystemExit("Heat minimum comfort period is missing")
           PY
+          python3 -m compileall -q custom_components/castncasa
           git diff --check
 
-      - name: Create GitHub release v1.0.15
+      - name: Create GitHub release v1.0.20
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.15 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.15 already exists."
+          if gh release view v1.0.20 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.20 already exists."
             exit 0
           fi
           TARGET="$(git rev-parse HEAD)"
-          gh release create v1.0.15 \
+          gh release create v1.0.20 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "CastnCasa Home Assistant 1.0.15" \
-            --notes "Fixes CastnCasa calendar loading after HACS updates by persistently registering the bundled calendar modules as Lovelace resources while retaining the frontend fallback. Also ships the production-tested desktop readability improvement: short time bars such as N1 use larger, bolder text without the previous heavy horizontal compression. Mobile and tablet calendar presentation are unchanged from 1.0.14."
+            --title "CastnCasa Home Assistant 1.0.20" \
+            --notes "Adds the configurable minimum comfort period to CastnCasa Heat 1.0. When a sufficiently long household empty period will start soon, CastnCasa can now recommend keeping an already active heating reduction instead of briefly reheating first. The new recommendation never lowers the heating early solely because departure is approaching. Actual presence remains the highest-priority signal, minimum empty period and normal reheating logic remain unchanged, and no boost mode is introduced."
