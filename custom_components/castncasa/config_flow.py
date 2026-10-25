@@ -18,11 +18,13 @@ from homeassistant.helpers import network, selector
 from .const import (
     CONF_PRESENCE_ENTITIES,
     CONF_HEAT_COMFORT_BUFFER_MINUTES,
+    CONF_HEAT_MIN_COMFORT_MINUTES,
     CONF_HEAT_MIN_EMPTY_MINUTES,
     CONF_HEAT_REHEAT_LEAD_MINUTES,
     DATA_MANAGER,
     DATA_SCHEDULE,
     DEFAULT_HEAT_COMFORT_BUFFER_MINUTES,
+    DEFAULT_HEAT_MIN_COMFORT_MINUTES,
     DEFAULT_HEAT_MIN_EMPTY_MINUTES,
     DEFAULT_HEAT_REHEAT_LEAD_MINUTES,
     DOMAIN,
@@ -134,6 +136,7 @@ class CastnCasaOptionsFlow(OptionsFlow):
                     probatio.Required(CONF_HEAT_MIN_EMPTY_MINUTES, default=int(current.get(CONF_HEAT_MIN_EMPTY_MINUTES, DEFAULT_HEAT_MIN_EMPTY_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=30, max=1440)),
                     probatio.Required(CONF_HEAT_REHEAT_LEAD_MINUTES, default=int(current.get(CONF_HEAT_REHEAT_LEAD_MINUTES, DEFAULT_HEAT_REHEAT_LEAD_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=360)),
                     probatio.Required(CONF_HEAT_COMFORT_BUFFER_MINUTES, default=int(current.get(CONF_HEAT_COMFORT_BUFFER_MINUTES, DEFAULT_HEAT_COMFORT_BUFFER_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=120)),
+                    probatio.Required(CONF_HEAT_MIN_COMFORT_MINUTES, default=int(current.get(CONF_HEAT_MIN_COMFORT_MINUTES, DEFAULT_HEAT_MIN_COMFORT_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=720)),
                 }
             ),
         )
