@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.20
+name: Release CastnCasa Home Assistant 1.0.21
 
 on:
   push:
@@ -16,40 +16,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify CastnCasa 1.0.20 release state
+      - name: Verify CastnCasa 1.0.21 release state
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           manifest = json.loads(Path("custom_components/castncasa/manifest.json").read_text())
-          if manifest.get("version") != "1.0.20":
+          if manifest.get("version") != "1.0.21":
               raise SystemExit(f"Unexpected manifest version: {manifest.get('version')}")
 
           const = Path("custom_components/castncasa/const.py").read_text()
-          if 'INTEGRATION_VERSION = "1.0.20"' not in const:
-              raise SystemExit("const.py is not at 1.0.20")
+          if 'INTEGRATION_VERSION = "1.0.21"' not in const:
+              raise SystemExit("const.py is not at 1.0.21")
 
           heat = Path("custom_components/castncasa/heat.py").read_text()
           if "hold_reduction_recommended" not in heat:
               raise SystemExit("Heat hold-reduction recommendation is missing")
           if "min_comfort_minutes" not in heat:
               raise SystemExit("Heat minimum comfort period is missing")
+          if "Reheating is intentionally independent from the minimum-empty threshold" not in heat:
+              raise SystemExit("Independent reheating logic is missing")
           PY
           python3 -m compileall -q custom_components/castncasa
           git diff --check
 
-      - name: Create GitHub release v1.0.20
+      - name: Create GitHub release v1.0.21
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.20 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.20 already exists."
+          if gh release view v1.0.21 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.21 already exists."
             exit 0
           fi
           TARGET="$(git rev-parse HEAD)"
-          gh release create v1.0.20 \
+          gh release create v1.0.21 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "CastnCasa Home Assistant 1.0.20" \
-            --notes "Adds the configurable minimum comfort period to CastnCasa Heat 1.0. When a sufficiently long household empty period will start soon, CastnCasa can now recommend keeping an already active heating reduction instead of briefly reheating first. The new recommendation never lowers the heating early solely because departure is approaching. Actual presence remains the highest-priority signal, minimum empty period and normal reheating logic remain unchanged, and no boost mode is introduced."
+            --title "CastnCasa Home Assistant 1.0.21" \
+            --notes "Fixes CastnCasa Heat reheating so the expected return time always controls when comfort resumes. The configurable minimum empty period now only decides whether a planned absence is worth lowering for; it no longer suppresses the configured reheating lead and comfort buffer. Short empty phases therefore remain or return to comfort in time for the expected arrival, while long empty phases still reduce normally. No boost mode is introduced."
