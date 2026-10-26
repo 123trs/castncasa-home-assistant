@@ -84,15 +84,20 @@ def calculate_heat_forecast(
     if empty_from is not None and empty_until is not None and empty_until > empty_from:
         duration_minutes = int(round((empty_until - empty_from).total_seconds() / 60))
 
+    # Reheating is intentionally independent from the minimum-empty threshold.
+    # min_empty_minutes only decides whether a planned absence is worth lowering for.
+    # The expected return time always decides when comfort must resume. This also
+    # means a short empty phase whose preheat window already started stays/re-enters
+    # comfort instead of waiting for actual presence to return.
     reheat_from: datetime | None = None
+    if empty_until is not None:
+        reheat_from = empty_until - timedelta(minutes=settings.total_reheat_lead_minutes)
+
     reduction_window_usable = False
-    if duration_minutes is not None and empty_from is not None and empty_until is not None:
-        candidate = empty_until - timedelta(minutes=settings.total_reheat_lead_minutes)
+    if duration_minutes is not None and empty_from is not None and reheat_from is not None:
         reduction_window_usable = (
-            duration_minutes >= settings.min_empty_minutes and candidate > empty_from
+            duration_minutes >= settings.min_empty_minutes and reheat_from > empty_from
         )
-        if reduction_window_usable:
-            reheat_from = candidate
 
     time_until_empty_minutes: int | None = None
     if empty_from is not None and empty_from > now:
@@ -111,12 +116,14 @@ def calculate_heat_forecast(
         seconds = max(0.0, (empty_until - now).total_seconds())
         time_until_home_minutes = int(math.ceil(seconds / 60))
 
-    if not current_empty or not reduction_window_usable:
+    if not current_empty:
         recommended_mode = "komfort"
     elif reheat_from is not None and now >= reheat_from:
         recommended_mode = "wiederaufheizen"
-    else:
+    elif reduction_window_usable:
         recommended_mode = "reduziert"
+    else:
+        recommended_mode = "komfort"
 
     confidence = int(household.get("forecast_confidence_pct", 0) or 0)
     forecast_status = str(household.get("forecast_status", "unvollständig"))
