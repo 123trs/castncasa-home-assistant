@@ -202,6 +202,14 @@ class CastnCasaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         snapshot["priority"] = "actual_presence_first"
         snapshot["priority_note"] = household["priority_note"]
+
+        # Heat learning is integration-local runtime state. Keep the most recent
+        # snapshot attached while the schedule/presence coordinator replaces its
+        # data every 60 seconds, so all Heat entities see one consistent learned
+        # lead even if their listeners run before the learner updates this cycle.
+        current_data = getattr(self, "data", None)
+        if isinstance(current_data, dict) and "heat_learning" in current_data:
+            snapshot["heat_learning"] = current_data["heat_learning"]
         return snapshot
 
     async def _async_update_data(self) -> dict[str, Any]:
