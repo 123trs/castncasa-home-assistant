@@ -16,14 +16,23 @@ from homeassistant.core import callback
 from homeassistant.helpers import network, selector
 
 from .const import (
-    CONF_PRESENCE_ENTITIES,
     CONF_HEAT_COMFORT_BUFFER_MINUTES,
+    CONF_HEAT_LEARNING_AUTO_APPLY,
+    CONF_HEAT_LEARNING_BURNER_ENTITY,
+    CONF_HEAT_LEARNING_ENABLED,
+    CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY,
+    CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY,
+    CONF_HEAT_LEARNING_TARGET_TEMP,
     CONF_HEAT_MIN_COMFORT_MINUTES,
     CONF_HEAT_MIN_EMPTY_MINUTES,
     CONF_HEAT_REHEAT_LEAD_MINUTES,
+    CONF_PRESENCE_ENTITIES,
     DATA_MANAGER,
     DATA_SCHEDULE,
     DEFAULT_HEAT_COMFORT_BUFFER_MINUTES,
+    DEFAULT_HEAT_LEARNING_AUTO_APPLY,
+    DEFAULT_HEAT_LEARNING_ENABLED,
+    DEFAULT_HEAT_LEARNING_TARGET_TEMP,
     DEFAULT_HEAT_MIN_COMFORT_MINUTES,
     DEFAULT_HEAT_MIN_EMPTY_MINUTES,
     DEFAULT_HEAT_REHEAT_LEAD_MINUTES,
@@ -123,22 +132,133 @@ class CastnCasaOptionsFlow(OptionsFlow):
     async def async_step_heat_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Configure CastnCasa Heat 1.0 recommendation thresholds."""
+        """Configure CastnCasa Heat recommendation and learning settings."""
         current = dict(self.config_entry.options)
         if user_input is not None:
             current.update(user_input)
+            for entity_key in (
+                CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY,
+                CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY,
+                CONF_HEAT_LEARNING_BURNER_ENTITY,
+            ):
+                if entity_key in user_input and not user_input.get(entity_key):
+                    current.pop(entity_key, None)
             return self.async_create_entry(data=current)
+
+        schema: dict[Any, Any] = {
+            probatio.Required(
+                CONF_HEAT_MIN_EMPTY_MINUTES,
+                default=int(
+                    current.get(
+                        CONF_HEAT_MIN_EMPTY_MINUTES, DEFAULT_HEAT_MIN_EMPTY_MINUTES
+                    )
+                ),
+            ): probatio.All(probatio.Coerce(int), probatio.Range(min=30, max=1440)),
+            probatio.Required(
+                CONF_HEAT_REHEAT_LEAD_MINUTES,
+                default=int(
+                    current.get(
+                        CONF_HEAT_REHEAT_LEAD_MINUTES,
+                        DEFAULT_HEAT_REHEAT_LEAD_MINUTES,
+                    )
+                ),
+            ): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=360)),
+            probatio.Required(
+                CONF_HEAT_COMFORT_BUFFER_MINUTES,
+                default=int(
+                    current.get(
+                        CONF_HEAT_COMFORT_BUFFER_MINUTES,
+                        DEFAULT_HEAT_COMFORT_BUFFER_MINUTES,
+                    )
+                ),
+            ): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=120)),
+            probatio.Required(
+                CONF_HEAT_MIN_COMFORT_MINUTES,
+                default=int(
+                    current.get(
+                        CONF_HEAT_MIN_COMFORT_MINUTES,
+                        DEFAULT_HEAT_MIN_COMFORT_MINUTES,
+                    )
+                ),
+            ): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=720)),
+            probatio.Required(
+                CONF_HEAT_LEARNING_ENABLED,
+                default=bool(
+                    current.get(
+                        CONF_HEAT_LEARNING_ENABLED,
+                        DEFAULT_HEAT_LEARNING_ENABLED,
+                    )
+                ),
+            ): selector.BooleanSelector(),
+            probatio.Required(
+                CONF_HEAT_LEARNING_AUTO_APPLY,
+                default=bool(
+                    current.get(
+                        CONF_HEAT_LEARNING_AUTO_APPLY,
+                        DEFAULT_HEAT_LEARNING_AUTO_APPLY,
+                    )
+                ),
+            ): selector.BooleanSelector(),
+            probatio.Required(
+                CONF_HEAT_LEARNING_TARGET_TEMP,
+                default=float(
+                    current.get(
+                        CONF_HEAT_LEARNING_TARGET_TEMP,
+                        DEFAULT_HEAT_LEARNING_TARGET_TEMP,
+                    )
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=15.0,
+                    max=30.0,
+                    step=0.1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+        }
+
+        room_default = str(current.get(CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY, "") or "")
+        outdoor_default = str(
+            current.get(CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY, "") or ""
+        )
+        burner_default = str(current.get(CONF_HEAT_LEARNING_BURNER_ENTITY, "") or "")
+        if room_default:
+            schema[
+                probatio.Optional(
+                    CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY, default=room_default
+                )
+            ] = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
+        else:
+            schema[probatio.Optional(CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY)] = (
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
+            )
+        if outdoor_default:
+            schema[
+                probatio.Optional(
+                    CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY, default=outdoor_default
+                )
+            ] = selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
+        else:
+            schema[probatio.Optional(CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY)] = (
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor"))
+            )
+        if burner_default:
+            schema[
+                probatio.Optional(CONF_HEAT_LEARNING_BURNER_ENTITY, default=burner_default)
+            ] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="binary_sensor")
+            )
+        else:
+            schema[probatio.Optional(CONF_HEAT_LEARNING_BURNER_ENTITY)] = (
+                selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="binary_sensor")
+                )
+            )
 
         return self.async_show_form(
             step_id="heat_settings",
-            data_schema=probatio.Schema(
-                {
-                    probatio.Required(CONF_HEAT_MIN_EMPTY_MINUTES, default=int(current.get(CONF_HEAT_MIN_EMPTY_MINUTES, DEFAULT_HEAT_MIN_EMPTY_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=30, max=1440)),
-                    probatio.Required(CONF_HEAT_REHEAT_LEAD_MINUTES, default=int(current.get(CONF_HEAT_REHEAT_LEAD_MINUTES, DEFAULT_HEAT_REHEAT_LEAD_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=360)),
-                    probatio.Required(CONF_HEAT_COMFORT_BUFFER_MINUTES, default=int(current.get(CONF_HEAT_COMFORT_BUFFER_MINUTES, DEFAULT_HEAT_COMFORT_BUFFER_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=120)),
-                    probatio.Required(CONF_HEAT_MIN_COMFORT_MINUTES, default=int(current.get(CONF_HEAT_MIN_COMFORT_MINUTES, DEFAULT_HEAT_MIN_COMFORT_MINUTES))): probatio.All(probatio.Coerce(int), probatio.Range(min=0, max=720)),
-                }
-            ),
+            data_schema=probatio.Schema(schema),
         )
 
     async def async_step_pair_resident(
