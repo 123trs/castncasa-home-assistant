@@ -13,6 +13,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import CastnCasaConfigEntry
 from .entity import CastnCasaEntity, CastnCasaHeatEntity, CastnCasaResidentEntity
 from .heat import HeatSettings, calculate_heat_forecast
+from .learning import HeatLearningManager
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -77,6 +78,12 @@ async def async_setup_entry(
     residents = coordinator.data.get("residents", [])
     known = {str(resident["id"]) for resident in residents}
     heat_settings = HeatSettings.from_options(entry.options)
+
+    learning = HeatLearningManager(hass, entry, coordinator, heat_settings)
+    await learning.async_load()
+    learning.process_update()
+    entry.async_on_unload(coordinator.async_add_listener(learning.process_update))
+
     entities: list[SensorEntity] = [
         HouseholdCountSensor(coordinator, instance_id, "active_residents", "Aktive Bewohner"),
         HouseholdCountSensor(coordinator, instance_id, "planned_away_now", "Geplant abwesend"),
@@ -95,6 +102,9 @@ async def async_setup_entry(
         HeatTimestampSensor(coordinator, instance_id, heat_settings),
         HeatForecastStatusSensor(coordinator, instance_id, heat_settings),
         HeatConfidenceSensor(coordinator, instance_id, heat_settings),
+        HeatLearningStatusSensor(coordinator, instance_id),
+        HeatLearningCyclesSensor(coordinator, instance_id),
+        HeatLearningLeadSensor(coordinator, instance_id),
     ]
     for resident in residents:
         entities.extend(_resident_entities(coordinator, instance_id, resident))
@@ -103,8 +113,6 @@ async def async_setup_entry(
     def _sync_residents() -> None:
         current_residents = coordinator.data.get("residents", [])
         current_ids = {str(resident["id"]) for resident in current_residents}
-        # Forget residents that were removed so the same device ID can be
-        # paired again later and all of its entities are recreated.
         known.intersection_update(current_ids)
         new_entities = []
         for resident in current_residents:
@@ -222,15 +230,22 @@ class CastnCasaHeatSensor(CastnCasaHeatEntity, SensorEntity):
 
     @property
     def heat(self) -> dict[str, Any]:
-        return calculate_heat_forecast(self.coordinator.data.get("household", {}), self._settings)
+        return calculate_heat_forecast(
+            self.coordinator.data.get("household", {}),
+            self._settings,
+            learning=self.coordinator.data.get("heat_learning", {}),
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         heat = self.heat
         return {
-            "module": "CastnCasa Heat 1.0",
+            "module": "CastnCasa Heat 1.1",
             "min_empty_minutes": heat["min_empty_minutes"],
             "reheat_lead_minutes": heat["reheat_lead_minutes"],
+            "effective_reheat_lead_minutes": heat["effective_reheat_lead_minutes"],
+            "learned_reheat_lead_minutes": heat["learned_reheat_lead_minutes"],
+            "learning_status": heat["learning_status"],
             "comfort_buffer_minutes": heat["comfort_buffer_minutes"],
             "next_house_empty_from": heat["next_house_empty_from"],
             "next_house_empty_until": heat["next_house_empty_until"],
@@ -330,3 +345,71 @@ class HeatConfidenceSensor(CastnCasaHeatSensor):
     @property
     def native_value(self) -> int:
         return int(self.heat["forecast_confidence_pct"])
+
+
+class CastnCasaLearningSensor(CastnCasaHeatEntity, SensorEntity):
+    """Base sensor for persistent Heat learning state."""
+
+    @property
+    def learning(self) -> dict[str, Any]:
+        return self.coordinator.data.get("heat_learning", {})
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        learning = self.learning
+        return {
+            "auto_apply": learning.get("auto_apply"),
+            "configured_reheat_lead_minutes": learning.get("configured_reheat_lead_minutes"),
+            "effective_reheat_lead_minutes": learning.get("effective_reheat_lead_minutes"),
+            "learned_reheat_lead_minutes": learning.get("learned_reheat_lead_minutes"),
+            "minimum_cycles_for_suggestion": learning.get("minimum_cycles_for_suggestion"),
+            "minimum_cycles_for_auto_apply": learning.get("minimum_cycles_for_auto_apply"),
+            "target_temperature": learning.get("target_temperature"),
+            "room_temperature_entity": learning.get("room_temperature_entity"),
+            "outdoor_temperature_entity": learning.get("outdoor_temperature_entity"),
+            "burner_entity": learning.get("burner_entity"),
+            "active_cycle": learning.get("active_cycle"),
+            "last_cycle": learning.get("last_cycle"),
+        }
+
+
+class HeatLearningStatusSensor(CastnCasaLearningSensor):
+    _attr_name = "Heat Lernstatus"
+    _attr_icon = "mdi:brain"
+
+    def __init__(self, coordinator, instance_id: str) -> None:
+        super().__init__(coordinator, instance_id)
+        self._attr_unique_id = f"{instance_id}_heat_learning_status"
+
+    @property
+    def native_value(self) -> str:
+        return str(self.learning.get("status") or "deaktiviert")
+
+
+class HeatLearningCyclesSensor(CastnCasaLearningSensor):
+    _attr_name = "Heat Lernzyklen"
+    _attr_icon = "mdi:counter"
+
+    def __init__(self, coordinator, instance_id: str) -> None:
+        super().__init__(coordinator, instance_id)
+        self._attr_unique_id = f"{instance_id}_heat_learning_cycles"
+
+    @property
+    def native_value(self) -> int:
+        return int(self.learning.get("valid_cycles", 0) or 0)
+
+
+class HeatLearningLeadSensor(CastnCasaLearningSensor):
+    _attr_name = "Gelernter Wiederaufheiz-Vorlauf"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_icon = "mdi:timer-cog-outline"
+
+    def __init__(self, coordinator, instance_id: str) -> None:
+        super().__init__(coordinator, instance_id)
+        self._attr_unique_id = f"{instance_id}_heat_learning_lead"
+
+    @property
+    def native_value(self) -> int | None:
+        value = self.learning.get("learned_reheat_lead_minutes")
+        return int(value) if value is not None else None
