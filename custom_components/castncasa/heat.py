@@ -62,7 +62,7 @@ class HeatSettings:
 
     @property
     def total_reheat_lead_minutes(self) -> int:
-        """Return preheat lead including the comfort safety buffer."""
+        """Return configured preheat lead including the comfort safety buffer."""
         return self.reheat_lead_minutes + self.comfort_buffer_minutes
 
 
@@ -70,8 +70,9 @@ def calculate_heat_forecast(
     household: Mapping[str, Any],
     settings: HeatSettings,
     now: datetime | None = None,
+    learning: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Calculate heating recommendations from the household forecast."""
+    """Calculate heating recommendations from household and learning data."""
     generated_at = _parse_dt(household.get("generated_at"))
     now = now or generated_at or datetime.now().astimezone()
     empty_from = _parse_dt(household.get("next_house_empty_from"))
@@ -84,14 +85,34 @@ def calculate_heat_forecast(
     if empty_from is not None and empty_until is not None and empty_until > empty_from:
         duration_minutes = int(round((empty_until - empty_from).total_seconds() / 60))
 
+    effective_reheat_lead_minutes = settings.reheat_lead_minutes
+    learned_reheat_lead_minutes: int | None = None
+    learning_status: str | None = None
+    if learning:
+        try:
+            effective_reheat_lead_minutes = int(
+                learning.get("effective_reheat_lead_minutes", settings.reheat_lead_minutes)
+            )
+        except (TypeError, ValueError):
+            effective_reheat_lead_minutes = settings.reheat_lead_minutes
+        learned_value = learning.get("learned_reheat_lead_minutes")
+        if learned_value is not None:
+            try:
+                learned_reheat_lead_minutes = int(learned_value)
+            except (TypeError, ValueError):
+                learned_reheat_lead_minutes = None
+        learning_status = str(learning.get("status")) if learning.get("status") else None
+
+    total_reheat_lead_minutes = (
+        effective_reheat_lead_minutes + settings.comfort_buffer_minutes
+    )
+
     # Reheating is intentionally independent from the minimum-empty threshold.
     # min_empty_minutes only decides whether a planned absence is worth lowering for.
-    # The expected return time always decides when comfort must resume. This also
-    # means a short empty phase whose preheat window already started stays/re-enters
-    # comfort instead of waiting for actual presence to return.
+    # The expected return time always decides when comfort must resume.
     reheat_from: datetime | None = None
     if empty_until is not None:
-        reheat_from = empty_until - timedelta(minutes=settings.total_reheat_lead_minutes)
+        reheat_from = empty_until - timedelta(minutes=total_reheat_lead_minutes)
 
     reduction_window_usable = False
     if duration_minutes is not None and empty_from is not None and reheat_from is not None:
@@ -142,6 +163,9 @@ def calculate_heat_forecast(
         "reduction_window_usable": reduction_window_usable,
         "min_empty_minutes": settings.min_empty_minutes,
         "reheat_lead_minutes": settings.reheat_lead_minutes,
+        "effective_reheat_lead_minutes": effective_reheat_lead_minutes,
+        "learned_reheat_lead_minutes": learned_reheat_lead_minutes,
+        "learning_status": learning_status,
         "comfort_buffer_minutes": settings.comfort_buffer_minutes,
         "min_comfort_minutes": settings.min_comfort_minutes,
         "next_house_empty_from": household.get("next_house_empty_from"),
