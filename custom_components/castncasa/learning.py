@@ -113,6 +113,9 @@ class HeatLearningManager:
             self._cycles = [item for item in cycles if isinstance(item, dict)][
                 -LEARNING_MAX_STORED_CYCLES:
             ]
+        active = data.get("active_cycle")
+        if isinstance(active, dict):
+            self._active = active
         last_cycle = data.get("last_cycle")
         if isinstance(last_cycle, dict):
             self._last_cycle = last_cycle
@@ -121,6 +124,7 @@ class HeatLearningManager:
         await self._store.async_save(
             {
                 "cycles": self._cycles[-LEARNING_MAX_STORED_CYCLES:],
+                "active_cycle": self._active,
                 "last_cycle": self._last_cycle,
             }
         )
@@ -208,6 +212,14 @@ class HeatLearningManager:
             and self._state_float(self.outdoor_temp_entity) is not None
         )
 
+    @staticmethod
+    def _cycle_key(forecast: dict[str, Any]) -> str | None:
+        reheat_from = forecast.get("reheat_from")
+        empty_until = forecast.get("next_house_empty_until")
+        if not isinstance(reheat_from, datetime) or not empty_until:
+            return None
+        return f"{reheat_from.isoformat()}|{empty_until}"
+
     def snapshot(self) -> dict[str, Any]:
         """Return the public learning state used by Heat entities."""
         valid_cycles = self._valid_cycles()
@@ -253,6 +265,7 @@ class HeatLearningManager:
             start_time = now
         expected_home = forecast.get("next_house_empty_until")
         self._active = {
+            "cycle_key": self._cycle_key(forecast),
             "started_at": start_time.isoformat(),
             "detected_at": now.isoformat(),
             "expected_home": expected_home,
@@ -265,6 +278,7 @@ class HeatLearningManager:
             "max_room_temp": round(room_temp, 2),
             "last_room_temp": round(room_temp, 2),
         }
+        self.hass.async_create_task(self._async_save())
 
     def _discard_active(self, reason: str, now: datetime) -> None:
         if self._active is None:
@@ -330,6 +344,12 @@ class HeatLearningManager:
             now=now,
             learning=learning_hint,
         )
+        cycle_key = self._cycle_key(forecast)
+
+        if self._active is not None:
+            active_key = self._active.get("cycle_key")
+            if cycle_key is not None and active_key not in {None, cycle_key}:
+                self._discard_active("forecast_changed", now)
 
         if self._active is not None:
             self._active["last_room_temp"] = round(room_temp, 2)
@@ -379,10 +399,16 @@ class HeatLearningManager:
                     room_temp,
                 )
 
-        if self._active is None and forecast["recommended_mode"] == "wiederaufheizen":
-            if bool(household.get("planned_house_empty")):
-                self._start_cycle(now, forecast, room_temp, outdoor_temp)
-                if room_temp >= self.target_temp - LEARNING_TARGET_TOLERANCE:
-                    self._finish_active("target_already_reached", now, 0, room_temp)
+        last_cycle_key = self._last_cycle.get("cycle_key") if self._last_cycle else None
+        if (
+            self._active is None
+            and forecast["recommended_mode"] == "wiederaufheizen"
+            and bool(household.get("planned_house_empty"))
+            and cycle_key is not None
+            and cycle_key != last_cycle_key
+        ):
+            self._start_cycle(now, forecast, room_temp, outdoor_temp)
+            if room_temp >= self.target_temp - LEARNING_TARGET_TOLERANCE:
+                self._finish_active("target_already_reached", now, 0, room_temp)
 
         self.coordinator.data["heat_learning"] = self.snapshot()
