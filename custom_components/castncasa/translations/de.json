@@ -24,7 +24,7 @@
         "menu_option_descriptions": {
           "pair_resident": "Öffnet die Koppelseite direkt in der CastnCasa-Integration und erzeugt einen einmaligen QR-Code.",
           "presence_settings": "Ordnet einen Bewohner einer Home-Assistant-Person oder einem Device-Tracker zu. Bei gleichem Namen wird eine Person automatisch erkannt.",
-          "heat_settings": "Schwellwerte für Heizungs-Prognose, kurze Komfortphasen und Wiederaufheiz-Empfehlung."
+          "heat_settings": "Schwellwerte für Heizungs-Prognose und lernenden Wiederaufheiz-Vorlauf."
         }
       },
       "pair_resident": {
@@ -50,19 +50,31 @@
         }
       },
       "heat_settings": {
-        "title": "CastnCasa Heat 1.0",
-        "description": "CastnCasa Heat liefert nur Empfehlungen. Reale Anwesenheit in Home Assistant hat immer Vorrang.",
+        "title": "CastnCasa Heat 1.1",
+        "description": "CastnCasa Heat liefert nur Empfehlungen. Die Lernfunktion beobachtet reale Wiederaufheizzyklen und kann nach genügend brauchbaren Zyklen den festen Vorlauf automatisch ersetzen. Reale Anwesenheit hat immer Vorrang.",
         "data": {
           "heat_min_empty_minutes": "Mindest-Leerphase (Minuten)",
-          "heat_reheat_lead_minutes": "Wiederaufheiz-Vorlauf (Minuten)",
+          "heat_reheat_lead_minutes": "Fester Wiederaufheiz-Vorlauf (Minuten)",
           "heat_comfort_buffer_minutes": "Komfortpuffer (Minuten)",
-          "heat_min_comfort_minutes": "Mindest-Komfortphase (Minuten)"
+          "heat_min_comfort_minutes": "Mindest-Komfortphase (Minuten)",
+          "heat_learning_enabled": "Lernenden Wiederaufheizzeitpunkt aktivieren",
+          "heat_learning_auto_apply": "Gelernten Vorlauf ab 5 Zyklen automatisch verwenden",
+          "heat_learning_target_temp": "Gemessene Komfort-Zieltemperatur",
+          "heat_learning_room_temp_entity": "Raumtemperatur-Sensor",
+          "heat_learning_outdoor_temp_entity": "Außentemperatur-Sensor",
+          "heat_learning_burner_entity": "Brennerstatus (optional)"
         },
         "data_description": {
           "heat_min_empty_minutes": "Erst ab dieser geplanten Leerphase wird Absenkung empfohlen.",
-          "heat_reheat_lead_minutes": "Feste Vorlaufzeit vor der erwarteten Heimkehr; lernende Vorlaufzeit folgt später mit Heat AI.",
-          "heat_comfort_buffer_minutes": "Zusätzlicher Sicherheits-/Komfortpuffer vor der erwarteten Heimkehr.",
-          "heat_min_comfort_minutes": "Beginnt die nächste sinnvolle Leerphase früher, empfiehlt CastnCasa, eine bereits aktive Absenkung beizubehalten statt nur kurz aufzuheizen. Allein wegen einer nahenden Abfahrt wird nicht vorzeitig abgesenkt."
+          "heat_reheat_lead_minutes": "Sicherer Rückfallwert. Er bleibt aktiv, bis die Lernfunktion mindestens fünf brauchbare Zyklen gesammelt hat.",
+          "heat_comfort_buffer_minutes": "Zusätzlicher Sicherheits-/Komfortpuffer vor der erwarteten Heimkehr. Er bleibt vom gelernten Vorlauf getrennt.",
+          "heat_min_comfort_minutes": "Beginnt die nächste sinnvolle Leerphase früher, empfiehlt CastnCasa, eine bereits aktive Absenkung beizubehalten statt nur kurz aufzuheizen. Allein wegen einer nahenden Abfahrt wird nicht vorzeitig abgesenkt.",
+          "heat_learning_enabled": "Sammelt reale Wiederaufheizzyklen aus Raum- und Außentemperatur.",
+          "heat_learning_auto_apply": "Nach drei Zyklen wird ein gelernter Vorschlag angezeigt. Ab fünf brauchbaren Zyklen darf er automatisch den festen Vorlauf ersetzen.",
+          "heat_learning_target_temp": "Gemessene Raumtemperatur, die zur Heimkehr erreicht sein soll.",
+          "heat_learning_room_temp_entity": "Temperatursensor, mit dem CastnCasa lernt, wie schnell das Haus Komfort erreicht.",
+          "heat_learning_outdoor_temp_entity": "Ähnliche Außentemperaturen werden bei der Berechnung stärker gewichtet.",
+          "heat_learning_burner_entity": "Optionaler binärer Brenner-Sensor. Der Brennerstart wird zur Diagnose gespeichert, ist aber zum Lernen nicht erforderlich."
         }
       }
     },
