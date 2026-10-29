@@ -42,7 +42,6 @@ async def async_setup_entry(
     def _sync_residents() -> None:
         current_residents = coordinator.data.get("residents", [])
         current_ids = {str(resident["id"]) for resident in current_residents}
-        # A removed resident may later pair again with the same device ID.
         known.intersection_update(current_ids)
         new_entities = []
         for resident in current_residents:
@@ -183,7 +182,11 @@ class HeatRecommendationBinarySensor(CastnCasaHeatEntity, BinarySensorEntity):
 
     @property
     def heat(self):
-        return calculate_heat_forecast(self.coordinator.data.get("household", {}), self._settings)
+        return calculate_heat_forecast(
+            self.coordinator.data.get("household", {}),
+            self._settings,
+            learning=self.coordinator.data.get("heat_learning", {}),
+        )
 
     @property
     def is_on(self) -> bool:
@@ -193,13 +196,16 @@ class HeatRecommendationBinarySensor(CastnCasaHeatEntity, BinarySensorEntity):
     def extra_state_attributes(self):
         heat = self.heat
         return {
-            "module": "CastnCasa Heat 1.0",
+            "module": "CastnCasa Heat 1.1",
             "recommended_mode": heat["recommended_mode"],
             "reheat_from": heat["reheat_from"].isoformat() if heat["reheat_from"] else None,
             "time_until_empty_minutes": heat["time_until_empty_minutes"],
             "min_empty_minutes": heat["min_empty_minutes"],
             "min_comfort_minutes": heat["min_comfort_minutes"],
             "reheat_lead_minutes": heat["reheat_lead_minutes"],
+            "effective_reheat_lead_minutes": heat["effective_reheat_lead_minutes"],
+            "learned_reheat_lead_minutes": heat["learned_reheat_lead_minutes"],
+            "learning_status": heat["learning_status"],
             "comfort_buffer_minutes": heat["comfort_buffer_minutes"],
             "priority": heat["priority"],
             "note": "Nur Empfehlung; CastnCasa schaltet keine Heizung selbst.",
