@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.21
+name: Release CastnCasa Home Assistant 1.0.22
 
 on:
   push:
@@ -16,42 +16,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify CastnCasa 1.0.21 release state
+      - name: Verify CastnCasa 1.0.22 release state
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           manifest = json.loads(Path("custom_components/castncasa/manifest.json").read_text())
-          if manifest.get("version") != "1.0.21":
+          if manifest.get("version") != "1.0.22":
               raise SystemExit(f"Unexpected manifest version: {manifest.get('version')}")
 
           const = Path("custom_components/castncasa/const.py").read_text()
-          if 'INTEGRATION_VERSION = "1.0.21"' not in const:
-              raise SystemExit("const.py is not at 1.0.21")
+          if 'INTEGRATION_VERSION = "1.0.22"' not in const:
+              raise SystemExit("const.py is not at 1.0.22")
 
           heat = Path("custom_components/castncasa/heat.py").read_text()
-          if "hold_reduction_recommended" not in heat:
-              raise SystemExit("Heat hold-reduction recommendation is missing")
-          if "min_comfort_minutes" not in heat:
-              raise SystemExit("Heat minimum comfort period is missing")
-          if "Reheating is intentionally independent from the minimum-empty threshold" not in heat:
-              raise SystemExit("Independent reheating logic is missing")
+          if "effective_reheat_lead_minutes" not in heat:
+              raise SystemExit("Adaptive reheating lead support is missing")
+
+          learning = Path("custom_components/castncasa/learning.py").read_text()
+          for marker in (
+              "LEARNING_MIN_CYCLES = 3",
+              "LEARNING_AUTO_APPLY_CYCLES = 5",
+              "HeatLearningManager",
+              "required_minutes",
+              "outdoor_temp",
+              "start_room_temp",
+          ):
+              if marker not in learning:
+                  raise SystemExit(f"Heat learning marker is missing: {marker}")
           PY
           python3 -m compileall -q custom_components/castncasa
           git diff --check
 
-      - name: Create GitHub release v1.0.21
+      - name: Create GitHub release v1.0.22
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.21 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.21 already exists."
+          if gh release view v1.0.22 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.22 already exists."
             exit 0
           fi
           TARGET="$(git rev-parse HEAD)"
-          gh release create v1.0.21 \
+          gh release create v1.0.22 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "CastnCasa Home Assistant 1.0.21" \
-            --notes "Fixes CastnCasa Heat reheating so the expected return time always controls when comfort resumes. The configurable minimum empty period now only decides whether a planned absence is worth lowering for; it no longer suppresses the configured reheating lead and comfort buffer. Short empty phases therefore remain or return to comfort in time for the expected arrival, while long empty phases still reduce normally. No boost mode is introduced."
+            --title "CastnCasa Home Assistant 1.0.22" \
+            --notes "Adds adaptive reheating learning to CastnCasa Heat. Real reheating cycles are stored persistently with room temperature, outdoor temperature, target temperature and optional burner start. After three valid cycles CastnCasa publishes a learned lead-time suggestion; after five valid cycles it can automatically use the learned lead instead of the fixed fallback. The configured comfort buffer stays separate, real presence remains highest priority, and no boost mode is introduced."
