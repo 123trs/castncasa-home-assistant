@@ -59,10 +59,12 @@
           "heat_min_comfort_minutes": "Minimum comfort period (minutes)",
           "heat_learning_enabled": "Enable adaptive reheating learning",
           "heat_learning_auto_apply": "Automatically use learned lead after 5 cycles",
-          "heat_learning_target_temp": "Measured comfort target temperature",
+          "heat_learning_target_temp": "Comfort target fallback",
           "heat_learning_room_temp_entity": "Room temperature sensor",
           "heat_learning_outdoor_temp_entity": "Outdoor temperature sensor",
-          "heat_learning_burner_entity": "Burner status (optional)"
+          "heat_learning_burner_entity": "Burner status (optional)",
+          "heat_learning_target_temp_entity": "Comfort target from heating",
+          "heat_reduced_target_temp_entity": "Reduced target from heating"
         },
         "data_description": {
           "heat_min_empty_minutes": "Reduction is only recommended for empty periods at least this long.",
@@ -71,10 +73,12 @@
           "heat_min_comfort_minutes": "If the next useful empty period starts sooner than this, CastnCasa recommends keeping an already active reduction instead of heating up briefly. It never recommends reducing early solely because departure is approaching.",
           "heat_learning_enabled": "Collect real reheating cycles using room and outdoor temperature.",
           "heat_learning_auto_apply": "After three cycles a learned value is shown as a suggestion. From five valid cycles it can replace the fixed lead automatically.",
-          "heat_learning_target_temp": "Measured room temperature that should be reached around return time.",
+          "heat_learning_target_temp": "Fallback only when the heating target is neither currently available nor available as a last valid value.",
           "heat_learning_room_temp_entity": "Temperature sensor used to measure how quickly the building reaches comfort.",
           "heat_learning_outdoor_temp_entity": "Outdoor temperature is used to weight similar heating cycles more strongly.",
-          "heat_learning_burner_entity": "Optional binary burner sensor. Burner start is stored for diagnostics but is not required for learning."
+          "heat_learning_burner_entity": "Optional binary burner sensor. Burner start is stored for diagnostics but is not required for learning.",
+          "heat_learning_target_temp_entity": "Heating number entity for the current comfort room target. Changes are adopted automatically for new learning cycles.",
+          "heat_reduced_target_temp_entity": "Heating number entity for the reduced room target. The value is exposed for diagnostics and the last valid value is retained across outages."
         }
       }
     },

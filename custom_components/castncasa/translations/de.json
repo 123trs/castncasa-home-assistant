@@ -59,10 +59,12 @@
           "heat_min_comfort_minutes": "Mindest-Komfortphase (Minuten)",
           "heat_learning_enabled": "Lernenden Wiederaufheizzeitpunkt aktivieren",
           "heat_learning_auto_apply": "Gelernten Vorlauf ab 5 Zyklen automatisch verwenden",
-          "heat_learning_target_temp": "Gemessene Komfort-Zieltemperatur",
+          "heat_learning_target_temp": "Komfort-Solltemperatur Fallback",
           "heat_learning_room_temp_entity": "Raumtemperatur-Sensor",
           "heat_learning_outdoor_temp_entity": "Außentemperatur-Sensor",
-          "heat_learning_burner_entity": "Brennerstatus (optional)"
+          "heat_learning_burner_entity": "Brennerstatus (optional)",
+          "heat_learning_target_temp_entity": "Komfort-Solltemperatur aus Heizung",
+          "heat_reduced_target_temp_entity": "Reduzierte Solltemperatur aus Heizung"
         },
         "data_description": {
           "heat_min_empty_minutes": "Erst ab dieser geplanten Leerphase wird Absenkung empfohlen.",
@@ -71,10 +73,12 @@
           "heat_min_comfort_minutes": "Beginnt die nächste sinnvolle Leerphase früher, empfiehlt CastnCasa, eine bereits aktive Absenkung beizubehalten statt nur kurz aufzuheizen. Allein wegen einer nahenden Abfahrt wird nicht vorzeitig abgesenkt.",
           "heat_learning_enabled": "Sammelt reale Wiederaufheizzyklen aus Raum- und Außentemperatur.",
           "heat_learning_auto_apply": "Nach drei Zyklen wird ein gelernter Vorschlag angezeigt. Ab fünf brauchbaren Zyklen darf er automatisch den festen Vorlauf ersetzen.",
-          "heat_learning_target_temp": "Gemessene Raumtemperatur, die zur Heimkehr erreicht sein soll.",
+          "heat_learning_target_temp": "Nur Fallback, falls die Heizungs-Solltemperatur weder aktuell noch als letzter gültiger Wert verfügbar ist.",
           "heat_learning_room_temp_entity": "Temperatursensor, mit dem CastnCasa lernt, wie schnell das Haus Komfort erreicht.",
           "heat_learning_outdoor_temp_entity": "Ähnliche Außentemperaturen werden bei der Berechnung stärker gewichtet.",
-          "heat_learning_burner_entity": "Optionaler binärer Brenner-Sensor. Der Brennerstart wird zur Diagnose gespeichert, ist aber zum Lernen nicht erforderlich."
+          "heat_learning_burner_entity": "Optionaler binärer Brenner-Sensor. Der Brennerstart wird zur Diagnose gespeichert, ist aber zum Lernen nicht erforderlich.",
+          "heat_learning_target_temp_entity": "Number-Entität der Heizung für die aktuelle Komfort-Solltemperatur. Änderungen werden automatisch für neue Lernzyklen übernommen.",
+          "heat_reduced_target_temp_entity": "Number-Entität der Heizung für die reduzierte Raum-Solltemperatur. Der Wert wird zur Diagnose mitgeführt und bei Ausfällen zuletzt gültig gespeichert."
         }
       }
     },

@@ -55,12 +55,18 @@
         "data": {
           "heat_min_empty_minutes": "Minimum empty period (minutes)",
           "heat_reheat_lead_minutes": "Reheat lead time (minutes)",
-          "heat_comfort_buffer_minutes": "Comfort buffer (minutes)"
+          "heat_comfort_buffer_minutes": "Comfort buffer (minutes)",
+          "heat_learning_target_temp": "Comfort target fallback",
+          "heat_learning_target_temp_entity": "Comfort target from heating",
+          "heat_reduced_target_temp_entity": "Reduced target from heating"
         },
         "data_description": {
           "heat_min_empty_minutes": "Reduction is only recommended for empty periods at least this long.",
           "heat_reheat_lead_minutes": "Fixed lead time before expected return; adaptive lead time will follow with Heat AI.",
-          "heat_comfort_buffer_minutes": "Additional safety/comfort buffer before the expected return."
+          "heat_comfort_buffer_minutes": "Additional safety/comfort buffer before the expected return.",
+          "heat_learning_target_temp": "Fallback only when the heating target is neither currently available nor available as a last valid value.",
+          "heat_learning_target_temp_entity": "Heating number entity for the current comfort room target. Changes are adopted automatically for new learning cycles.",
+          "heat_reduced_target_temp_entity": "Heating number entity for the reduced room target. The value is exposed for diagnostics and the last valid value is retained across outages."
         }
       }
     },

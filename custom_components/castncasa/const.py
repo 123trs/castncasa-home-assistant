@@ -3,7 +3,7 @@
 from homeassistant.const import Platform
 
 DOMAIN = "castncasa"
-INTEGRATION_VERSION = "1.0.24"
+INTEGRATION_VERSION = "1.0.25"
 DATA_MANAGER = "manager"
 DATA_SCHEDULE = "schedule"
 DATA_PRESENCE = "presence"
@@ -20,6 +20,8 @@ CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY = "heat_learning_room_temp_entity"
 CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY = "heat_learning_outdoor_temp_entity"
 CONF_HEAT_LEARNING_BURNER_ENTITY = "heat_learning_burner_entity"
 CONF_HEAT_LEARNING_TARGET_TEMP = "heat_learning_target_temp"
+CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY = "heat_learning_target_temp_entity"
+CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY = "heat_reduced_target_temp_entity"
 
 DEFAULT_HEAT_MIN_EMPTY_MINUTES = 120
 DEFAULT_HEAT_REHEAT_LEAD_MINUTES = 60

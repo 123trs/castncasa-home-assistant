@@ -23,6 +23,8 @@ from .const import (
     CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY,
     CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY,
     CONF_HEAT_LEARNING_TARGET_TEMP,
+    CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY,
+    CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY,
     CONF_HEAT_MIN_COMFORT_MINUTES,
     CONF_HEAT_MIN_EMPTY_MINUTES,
     CONF_HEAT_REHEAT_LEAD_MINUTES,
@@ -140,6 +142,8 @@ class CastnCasaOptionsFlow(OptionsFlow):
                 CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY,
                 CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY,
                 CONF_HEAT_LEARNING_BURNER_ENTITY,
+                CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY,
+                CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY,
             ):
                 if entity_key in user_input and not user_input.get(entity_key):
                     current.pop(entity_key, None)
@@ -223,6 +227,8 @@ class CastnCasaOptionsFlow(OptionsFlow):
             current.get(CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY, "") or ""
         )
         burner_default = str(current.get(CONF_HEAT_LEARNING_BURNER_ENTITY, "") or "")
+        target_default = str(current.get(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY, "") or "")
+        reduced_default = str(current.get(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY, "") or "")
         if room_default:
             schema[
                 probatio.Optional(
@@ -254,6 +260,23 @@ class CastnCasaOptionsFlow(OptionsFlow):
                 selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="binary_sensor")
                 )
+            )
+
+        if target_default:
+            schema[probatio.Optional(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY, default=target_default)] = (
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))
+            )
+        else:
+            schema[probatio.Optional(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY)] = (
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))
+            )
+        if reduced_default:
+            schema[probatio.Optional(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY, default=reduced_default)] = (
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))
+            )
+        else:
+            schema[probatio.Optional(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY)] = (
+                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))
             )
 
         return self.async_show_form(

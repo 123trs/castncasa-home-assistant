@@ -24,6 +24,8 @@ from .const import (
     CONF_HEAT_LEARNING_OUTDOOR_TEMP_ENTITY,
     CONF_HEAT_LEARNING_ROOM_TEMP_ENTITY,
     CONF_HEAT_LEARNING_TARGET_TEMP,
+    CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY,
+    CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY,
     DEFAULT_HEAT_LEARNING_AUTO_APPLY,
     DEFAULT_HEAT_LEARNING_ENABLED,
     DEFAULT_HEAT_LEARNING_TARGET_TEMP,
@@ -64,6 +66,8 @@ class HeatLearningManager:
         self._cycles: list[dict[str, Any]] = []
         self._active: dict[str, Any] | None = None
         self._last_cycle: dict[str, Any] | None = None
+        self._last_target_temp: float | None = None
+        self._last_reduced_target_temp: float | None = None
 
     @property
     def enabled(self) -> bool:
@@ -97,13 +101,57 @@ class HeatLearningManager:
         return str(self.entry.options.get(CONF_HEAT_LEARNING_BURNER_ENTITY, "") or "")
 
     @property
-    def target_temp(self) -> float:
+    def target_temp_entity(self) -> str:
+        return str(
+            self.entry.options.get(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY, "") or ""
+        )
+
+    @property
+    def reduced_target_temp_entity(self) -> str:
+        return str(
+            self.entry.options.get(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY, "") or ""
+        )
+
+    @property
+    def configured_target_temp(self) -> float:
         return float(
             self.entry.options.get(
                 CONF_HEAT_LEARNING_TARGET_TEMP,
                 DEFAULT_HEAT_LEARNING_TARGET_TEMP,
             )
         )
+
+    @property
+    def target_temp(self) -> float:
+        live = self._state_float(self.target_temp_entity)
+        if live is not None:
+            return live
+        if self._last_target_temp is not None:
+            return self._last_target_temp
+        return self.configured_target_temp
+
+    @property
+    def reduced_target_temp(self) -> float | None:
+        live = self._state_float(self.reduced_target_temp_entity)
+        if live is not None:
+            return live
+        return self._last_reduced_target_temp
+
+    @property
+    def target_temp_source(self) -> str:
+        if self._state_float(self.target_temp_entity) is not None:
+            return "heating_entity"
+        if self._last_target_temp is not None:
+            return "last_valid_heating_value"
+        return "configured_fallback"
+
+    @property
+    def reduced_target_temp_source(self) -> str | None:
+        if self._state_float(self.reduced_target_temp_entity) is not None:
+            return "heating_entity"
+        if self._last_reduced_target_temp is not None:
+            return "last_valid_heating_value"
+        return None
 
     async def async_load(self) -> None:
         """Load persisted learning data."""
@@ -119,6 +167,12 @@ class HeatLearningManager:
         last_cycle = data.get("last_cycle")
         if isinstance(last_cycle, dict):
             self._last_cycle = last_cycle
+        last_target_temp = data.get("last_target_temp")
+        if isinstance(last_target_temp, (int, float)):
+            self._last_target_temp = float(last_target_temp)
+        last_reduced_target_temp = data.get("last_reduced_target_temp")
+        if isinstance(last_reduced_target_temp, (int, float)):
+            self._last_reduced_target_temp = float(last_reduced_target_temp)
 
     async def _async_save(self) -> None:
         await self._store.async_save(
@@ -126,6 +180,8 @@ class HeatLearningManager:
                 "cycles": self._cycles[-LEARNING_MAX_STORED_CYCLES:],
                 "active_cycle": self._active,
                 "last_cycle": self._last_cycle,
+                "last_target_temp": self._last_target_temp,
+                "last_reduced_target_temp": self._last_reduced_target_temp,
             }
         )
 
@@ -140,6 +196,18 @@ class HeatLearningManager:
         except (TypeError, ValueError):
             return None
         return value if math.isfinite(value) else None
+
+    def _refresh_heating_targets(self) -> bool:
+        changed = False
+        live_target = self._state_float(self.target_temp_entity)
+        if live_target is not None and live_target != self._last_target_temp:
+            self._last_target_temp = live_target
+            changed = True
+        live_reduced = self._state_float(self.reduced_target_temp_entity)
+        if live_reduced is not None and live_reduced != self._last_reduced_target_temp:
+            self._last_reduced_target_temp = live_reduced
+            changed = True
+        return changed
 
     def _burner_on(self) -> bool | None:
         if not self.burner_entity:
@@ -246,6 +314,11 @@ class HeatLearningManager:
             "learned_reheat_lead_minutes": prediction,
             "effective_reheat_lead_minutes": self.effective_reheat_lead_minutes,
             "target_temperature": self.target_temp,
+            "target_temperature_entity": self.target_temp_entity or None,
+            "target_temperature_source": self.target_temp_source,
+            "reduced_target_temperature": self.reduced_target_temp,
+            "reduced_target_temperature_entity": self.reduced_target_temp_entity or None,
+            "reduced_target_temperature_source": self.reduced_target_temp_source,
             "room_temperature_entity": self.room_temp_entity or None,
             "outdoor_temperature_entity": self.outdoor_temp_entity or None,
             "burner_entity": self.burner_entity or None,
@@ -321,6 +394,8 @@ class HeatLearningManager:
     def process_update(self) -> None:
         """Observe one coordinator update and advance the learning state."""
         now = dt_util.now()
+        if self._refresh_heating_targets():
+            self.hass.async_create_task(self._async_save())
         household = self.coordinator.data.get("household", {})
 
         if not self.enabled or not self._sources_ready():
