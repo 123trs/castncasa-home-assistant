@@ -24,6 +24,7 @@ KINDS = {"work", "free", "leave", "sick", "other"}
 MAX_PROFILES = 50
 MAX_ASSIGNMENTS = 800
 MAX_WEEKLY_DEFAULTS = 7
+PROFILE_HISTORY_BASELINE = date.min.isoformat()
 
 
 class ScheduleValidationError(Exception):
@@ -92,6 +93,135 @@ def _normalize_profile(raw: Any) -> dict[str, Any]:
     }
 
 
+def _copy_profile(profile: Any) -> dict[str, Any] | None:
+    """Return a safe stored profile copy or None for malformed history data."""
+    if not isinstance(profile, dict):
+        return None
+    try:
+        return _normalize_profile(profile)
+    except ScheduleValidationError:
+        return None
+
+
+def _clean_profile_history(raw: Any) -> dict[str, list[dict[str, Any]]]:
+    """Normalize persisted profile history without exposing it through the API."""
+    result: dict[str, list[dict[str, Any]]] = {}
+    if not isinstance(raw, dict):
+        return result
+    for raw_code, raw_versions in raw.items():
+        code = str(raw_code).strip().upper()
+        if not CODE_RE.fullmatch(code) or not isinstance(raw_versions, list):
+            continue
+        versions: list[dict[str, Any]] = []
+        for raw_version in raw_versions:
+            if not isinstance(raw_version, dict):
+                continue
+            try:
+                effective_from = _validate_date(str(raw_version.get("effective_from", "")))
+            except ScheduleValidationError:
+                continue
+            profile = _copy_profile(raw_version.get("profile"))
+            if profile is None or profile["code"] != code:
+                continue
+            versions.append({"effective_from": effective_from, "profile": profile})
+        versions.sort(key=lambda item: item["effective_from"])
+        compacted: list[dict[str, Any]] = []
+        for version in versions:
+            if compacted and compacted[-1]["effective_from"] == version["effective_from"]:
+                compacted[-1] = version
+            elif compacted and compacted[-1]["profile"] == version["profile"]:
+                continue
+            else:
+                compacted.append(version)
+        if compacted:
+            result[code] = compacted
+    return result
+
+
+def _merge_profile_history(
+    current: dict[str, Any],
+    profiles: dict[str, dict[str, Any]],
+    effective_from: str,
+) -> dict[str, list[dict[str, Any]]]:
+    """Version profile changes so older calendar days keep their old values."""
+    history = _clean_profile_history(current.get("profile_history", {}))
+    current_profiles = current.get("profiles", {})
+    if not isinstance(current_profiles, dict):
+        current_profiles = {}
+
+    # Existing installations did not have history. The profile that was active
+    # before this feature becomes the baseline and therefore remains valid for
+    # all dates before the first later edit.
+    for raw_code, raw_profile in current_profiles.items():
+        code = str(raw_code).strip().upper()
+        old_profile = _copy_profile(raw_profile)
+        if old_profile is None:
+            continue
+        versions = history.setdefault(code, [])
+        if not versions:
+            versions.append(
+                {"effective_from": PROFILE_HISTORY_BASELINE, "profile": old_profile}
+            )
+
+    # A brand-new resident has no previous definition. Treat the first received
+    # profiles as baseline so imported older assignments still render normally.
+    if not current_profiles:
+        for code, profile in profiles.items():
+            history[code] = [
+                {
+                    "effective_from": PROFILE_HISTORY_BASELINE,
+                    "profile": dict(profile),
+                }
+            ]
+        return history
+
+    for code, profile in profiles.items():
+        old_profile = _copy_profile(current_profiles.get(code))
+        versions = history.setdefault(code, [])
+        if old_profile is None and not versions:
+            versions.append({"effective_from": effective_from, "profile": dict(profile)})
+            continue
+        if old_profile == profile:
+            continue
+
+        new_version = {"effective_from": effective_from, "profile": dict(profile)}
+        if versions and versions[-1]["effective_from"] == effective_from:
+            # Multiple edits on the same day all apply from that same day. Keep
+            # only the final definition while preserving all earlier dates.
+            versions[-1] = new_version
+        elif not versions or versions[-1]["profile"] != profile:
+            versions.append(new_version)
+
+    return _clean_profile_history(history)
+
+
+def _profile_for_day(
+    resident: dict[str, Any], code: str, day_str: str
+) -> dict[str, Any] | None:
+    """Resolve the profile definition that was valid on a calendar day."""
+    history = resident.get("profile_history", {})
+    versions = history.get(code, []) if isinstance(history, dict) else []
+    selected: dict[str, Any] | None = None
+    if isinstance(versions, list):
+        for version in versions:
+            if not isinstance(version, dict):
+                continue
+            effective_from = str(version.get("effective_from", ""))
+            if effective_from and effective_from <= day_str:
+                candidate = _copy_profile(version.get("profile"))
+                if candidate is not None and candidate["code"] == code:
+                    selected = candidate
+            elif effective_from > day_str:
+                break
+    if selected is not None:
+        return selected
+
+    profiles = resident.get("profiles", {})
+    if not isinstance(profiles, dict):
+        return None
+    return _copy_profile(profiles.get(code))
+
+
 def _absence_interval(
     day_str: str,
     profile: dict[str, Any],
@@ -149,7 +279,6 @@ def _absence_interval(
 
 
 def _assignment_for_day(resident: dict[str, Any], day_str: str, tz: ZoneInfo) -> dict[str, Any] | None:
-    profiles = resident.get("profiles", {})
     code = resident.get("assignments", {}).get(day_str)
     source = "explicit"
     if code is None:
@@ -158,7 +287,8 @@ def _assignment_for_day(resident: dict[str, Any], day_str: str, tz: ZoneInfo) ->
         source = "weekly_default"
     if not code:
         return None
-    profile = profiles.get(code)
+    code = str(code).strip().upper()
+    profile = _profile_for_day(resident, code, day_str)
     if not profile:
         return None
     item: dict[str, Any] = {
@@ -462,7 +592,11 @@ class CastnCasaScheduleStore:
             color_locked = bool(current.get("color_locked", False))
 
         revision = int(current.get("revision", 0)) + 1
-        now = datetime.now(self.timezone).isoformat(timespec="seconds")
+        now_dt = datetime.now(self.timezone)
+        now = now_dt.isoformat(timespec="seconds")
+        profile_history = _merge_profile_history(
+            current, profiles, now_dt.date().isoformat()
+        )
         resident = {
             "id": device_id,
             "device_id": device_id,
@@ -471,6 +605,7 @@ class CastnCasaScheduleStore:
             "color_locked": color_locked,
             "active": bool(resident_raw.get("active", True)),
             "profiles": profiles,
+            "profile_history": profile_history,
             "assignments": assignments,
             "weekly_defaults": weekly_defaults,
             "revision": revision,
