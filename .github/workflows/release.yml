@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.23
+name: Release CastnCasa Home Assistant 1.0.24
 
 on:
   push:
@@ -16,19 +16,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify CastnCasa 1.0.23 release state
+      - name: Verify CastnCasa 1.0.24 release state
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           manifest = json.loads(Path("custom_components/castncasa/manifest.json").read_text())
-          if manifest.get("version") != "1.0.23":
+          if manifest.get("version") != "1.0.24":
               raise SystemExit(f"Unexpected manifest version: {manifest.get('version')}")
 
           const = Path("custom_components/castncasa/const.py").read_text()
-          if 'INTEGRATION_VERSION = "1.0.23"' not in const:
-              raise SystemExit("const.py is not at 1.0.23")
+          if 'INTEGRATION_VERSION = "1.0.24"' not in const:
+              raise SystemExit("const.py is not at 1.0.24")
+
+          schedule = Path("custom_components/castncasa/schedule.py").read_text()
+          for marker in (
+              "PROFILE_HISTORY_BASELINE",
+              "_merge_profile_history",
+              "_profile_for_day",
+              '"profile_history": profile_history',
+          ):
+              if marker not in schedule:
+                  raise SystemExit(f"Profile history marker is missing: {marker}")
 
           heat = Path("custom_components/castncasa/heat.py").read_text()
           if "effective_reheat_lead_minutes" not in heat:
@@ -51,17 +61,17 @@ jobs:
           python3 -m compileall -q custom_components/castncasa
           git diff --check
 
-      - name: Create GitHub release v1.0.23
+      - name: Create GitHub release v1.0.24
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.23 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.23 already exists."
+          if gh release view v1.0.24 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.24 already exists."
             exit 0
           fi
           TARGET="$(git rev-parse HEAD)"
-          gh release create v1.0.23 \
+          gh release create v1.0.24 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "CastnCasa Home Assistant 1.0.23" \
-            --notes "Hardens adaptive reheating learning introduced in 1.0.22 by preserving the current Heat learning snapshot across CastnCasa's 60-second schedule/presence coordinator refresh. This keeps all recommendation entities on one consistent effective lead time while a learning cycle is evaluated. Learning policy remains: suggestion after 3 valid cycles, automatic learned lead after 5, fixed lead as fallback, separate comfort buffer, and no boost mode."
+            --title "CastnCasa Home Assistant 1.0.24" \
+            --notes "Preserves historical shift profile values when travel times, shift start/end times, or other profile settings are changed later. Existing calendar days keep the profile definition that applied before the change, while the new definition applies from the change date onward. Existing installations migrate automatically on the next schedule sync; the mobile API remains backward-compatible and does not expose internal profile history."
