@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.24
+name: Release CastnCasa Home Assistant 1.0.25
 
 on:
   push:
@@ -15,63 +15,216 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Verify CastnCasa 1.0.24 release state
+      - name: Apply CastnCasa 1.0.25 live target-temperature support
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"Marker missing in {path}: {old[:80]!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace(
+              "custom_components/castncasa/const.py",
+              'INTEGRATION_VERSION = "1.0.24"',
+              'INTEGRATION_VERSION = "1.0.25"',
+          )
+          replace(
+              "custom_components/castncasa/const.py",
+              'CONF_HEAT_LEARNING_TARGET_TEMP = "heat_learning_target_temp"\n',
+              'CONF_HEAT_LEARNING_TARGET_TEMP = "heat_learning_target_temp"\n'
+              'CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY = "heat_learning_target_temp_entity"\n'
+              'CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY = "heat_reduced_target_temp_entity"\n',
+          )
+
+          replace(
+              "custom_components/castncasa/learning.py",
+              '    CONF_HEAT_LEARNING_TARGET_TEMP,\n',
+              '    CONF_HEAT_LEARNING_TARGET_TEMP,\n'
+              '    CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY,\n'
+              '    CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY,\n',
+          )
+          replace(
+              "custom_components/castncasa/learning.py",
+              '        self._last_cycle: dict[str, Any] | None = None\n',
+              '        self._last_cycle: dict[str, Any] | None = None\n'
+              '        self._last_target_temp: float | None = None\n'
+              '        self._last_reduced_target_temp: float | None = None\n',
+          )
+          replace(
+              "custom_components/castncasa/learning.py",
+              '    @property\n    def target_temp(self) -> float:\n        return float(\n            self.entry.options.get(\n                CONF_HEAT_LEARNING_TARGET_TEMP,\n                DEFAULT_HEAT_LEARNING_TARGET_TEMP,\n            )\n        )\n',
+              '''    @property\n    def target_temp_entity(self) -> str:\n        return str(\n            self.entry.options.get(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY, "") or ""\n        )\n\n    @property\n    def reduced_target_temp_entity(self) -> str:\n        return str(\n            self.entry.options.get(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY, "") or ""\n        )\n\n    @property\n    def configured_target_temp(self) -> float:\n        return float(\n            self.entry.options.get(\n                CONF_HEAT_LEARNING_TARGET_TEMP,\n                DEFAULT_HEAT_LEARNING_TARGET_TEMP,\n            )\n        )\n\n    @property\n    def target_temp(self) -> float:\n        live = self._state_float(self.target_temp_entity)\n        if live is not None:\n            return live\n        if self._last_target_temp is not None:\n            return self._last_target_temp\n        return self.configured_target_temp\n\n    @property\n    def reduced_target_temp(self) -> float | None:\n        live = self._state_float(self.reduced_target_temp_entity)\n        if live is not None:\n            return live\n        return self._last_reduced_target_temp\n\n    @property\n    def target_temp_source(self) -> str:\n        if self._state_float(self.target_temp_entity) is not None:\n            return "heating_entity"\n        if self._last_target_temp is not None:\n            return "last_valid_heating_value"\n        return "configured_fallback"\n\n    @property\n    def reduced_target_temp_source(self) -> str | None:\n        if self._state_float(self.reduced_target_temp_entity) is not None:\n            return "heating_entity"\n        if self._last_reduced_target_temp is not None:\n            return "last_valid_heating_value"\n        return None\n''',
+          )
+          replace(
+              "custom_components/castncasa/learning.py",
+              '        last_cycle = data.get("last_cycle")\n        if isinstance(last_cycle, dict):\n            self._last_cycle = last_cycle\n',
+              '        last_cycle = data.get("last_cycle")\n        if isinstance(last_cycle, dict):\n            self._last_cycle = last_cycle\n'
+              '        last_target_temp = data.get("last_target_temp")\n'
+              '        if isinstance(last_target_temp, (int, float)):\n'
+              '            self._last_target_temp = float(last_target_temp)\n'
+              '        last_reduced_target_temp = data.get("last_reduced_target_temp")\n'
+              '        if isinstance(last_reduced_target_temp, (int, float)):\n'
+              '            self._last_reduced_target_temp = float(last_reduced_target_temp)\n',
+          )
+          replace(
+              "custom_components/castncasa/learning.py",
+              '                "last_cycle": self._last_cycle,\n',
+              '                "last_cycle": self._last_cycle,\n'
+              '                "last_target_temp": self._last_target_temp,\n'
+              '                "last_reduced_target_temp": self._last_reduced_target_temp,\n',
+          )
+          replace(
+              "custom_components/castncasa/learning.py",
+              '    def _burner_on(self) -> bool | None:\n',
+              '''    def _refresh_heating_targets(self) -> bool:\n        changed = False\n        live_target = self._state_float(self.target_temp_entity)\n        if live_target is not None and live_target != self._last_target_temp:\n            self._last_target_temp = live_target\n            changed = True\n        live_reduced = self._state_float(self.reduced_target_temp_entity)\n        if live_reduced is not None and live_reduced != self._last_reduced_target_temp:\n            self._last_reduced_target_temp = live_reduced\n            changed = True\n        return changed\n\n    def _burner_on(self) -> bool | None:\n''',
+          )
+          replace(
+              "custom_components/castncasa/learning.py",
+              '            "target_temperature": self.target_temp,\n',
+              '            "target_temperature": self.target_temp,\n'
+              '            "target_temperature_entity": self.target_temp_entity or None,\n'
+              '            "target_temperature_source": self.target_temp_source,\n'
+              '            "reduced_target_temperature": self.reduced_target_temp,\n'
+              '            "reduced_target_temperature_entity": self.reduced_target_temp_entity or None,\n'
+              '            "reduced_target_temperature_source": self.reduced_target_temp_source,\n',
+          )
+          replace(
+              "custom_components/castncasa/learning.py",
+              '        now = dt_util.now()\n        household = self.coordinator.data.get("household", {})\n',
+              '        now = dt_util.now()\n'
+              '        if self._refresh_heating_targets():\n'
+              '            self.hass.async_create_task(self._async_save())\n'
+              '        household = self.coordinator.data.get("household", {})\n',
+          )
+
+          replace(
+              "custom_components/castncasa/config_flow.py",
+              '    CONF_HEAT_LEARNING_TARGET_TEMP,\n',
+              '    CONF_HEAT_LEARNING_TARGET_TEMP,\n'
+              '    CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY,\n'
+              '    CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY,\n',
+          )
+          replace(
+              "custom_components/castncasa/config_flow.py",
+              '                CONF_HEAT_LEARNING_BURNER_ENTITY,\n            ):\n',
+              '                CONF_HEAT_LEARNING_BURNER_ENTITY,\n'
+              '                CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY,\n'
+              '                CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY,\n'
+              '            ):\n',
+          )
+          replace(
+              "custom_components/castncasa/config_flow.py",
+              '        burner_default = str(current.get(CONF_HEAT_LEARNING_BURNER_ENTITY, "") or "")\n',
+              '        burner_default = str(current.get(CONF_HEAT_LEARNING_BURNER_ENTITY, "") or "")\n'
+              '        target_default = str(current.get(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY, "") or "")\n'
+              '        reduced_default = str(current.get(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY, "") or "")\n',
+          )
+          replace(
+              "custom_components/castncasa/config_flow.py",
+              '        return self.async_show_form(\n            step_id="heat_settings",\n            data_schema=probatio.Schema(schema),\n        )\n',
+              '''        if target_default:\n            schema[probatio.Optional(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY, default=target_default)] = (\n                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))\n            )\n        else:\n            schema[probatio.Optional(CONF_HEAT_LEARNING_TARGET_TEMP_ENTITY)] = (\n                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))\n            )\n        if reduced_default:\n            schema[probatio.Optional(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY, default=reduced_default)] = (\n                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))\n            )\n        else:\n            schema[probatio.Optional(CONF_HEAT_REDUCED_TARGET_TEMP_ENTITY)] = (\n                selector.EntitySelector(selector.EntitySelectorConfig(domain="number"))\n            )\n\n        return self.async_show_form(\n            step_id="heat_settings",\n            data_schema=probatio.Schema(schema),\n        )\n''',
+          )
+
+          replace(
+              "custom_components/castncasa/sensor.py",
+              '            "target_temperature": learning.get("target_temperature"),\n',
+              '            "target_temperature": learning.get("target_temperature"),\n'
+              '            "target_temperature_entity": learning.get("target_temperature_entity"),\n'
+              '            "target_temperature_source": learning.get("target_temperature_source"),\n'
+              '            "reduced_target_temperature": learning.get("reduced_target_temperature"),\n'
+              '            "reduced_target_temperature_entity": learning.get("reduced_target_temperature_entity"),\n'
+              '            "reduced_target_temperature_source": learning.get("reduced_target_temperature_source"),\n',
+          )
+
+          manifest_path = Path("custom_components/castncasa/manifest.json")
+          manifest = json.loads(manifest_path.read_text())
+          manifest["version"] = "1.0.25"
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+
+          for path in (
+              "custom_components/castncasa/strings.json",
+              "custom_components/castncasa/translations/en.json",
+              "custom_components/castncasa/translations/de.json",
+          ):
+              p = Path(path)
+              data = json.loads(p.read_text())
+              heat = data["options"]["step"]["heat_settings"]
+              labels = heat.setdefault("data", {})
+              desc = heat.setdefault("data_description", {})
+              if path.endswith("de.json"):
+                  labels["heat_learning_target_temp"] = "Komfort-Solltemperatur Fallback"
+                  labels["heat_learning_target_temp_entity"] = "Komfort-Solltemperatur aus Heizung"
+                  labels["heat_reduced_target_temp_entity"] = "Reduzierte Solltemperatur aus Heizung"
+                  desc["heat_learning_target_temp"] = "Nur Fallback, falls die Heizungs-Solltemperatur weder aktuell noch als letzter gültiger Wert verfügbar ist."
+                  desc["heat_learning_target_temp_entity"] = "Number-Entität der Heizung für die aktuelle Komfort-Solltemperatur. Änderungen werden automatisch für neue Lernzyklen übernommen."
+                  desc["heat_reduced_target_temp_entity"] = "Number-Entität der Heizung für die reduzierte Raum-Solltemperatur. Der Wert wird zur Diagnose mitgeführt und bei Ausfällen zuletzt gültig gespeichert."
+              else:
+                  labels["heat_learning_target_temp"] = "Comfort target fallback"
+                  labels["heat_learning_target_temp_entity"] = "Comfort target from heating"
+                  labels["heat_reduced_target_temp_entity"] = "Reduced target from heating"
+                  desc["heat_learning_target_temp"] = "Fallback only when the heating target is neither currently available nor available as a last valid value."
+                  desc["heat_learning_target_temp_entity"] = "Heating number entity for the current comfort room target. Changes are adopted automatically for new learning cycles."
+                  desc["heat_reduced_target_temp_entity"] = "Heating number entity for the reduced room target. The value is exposed for diagnostics and the last valid value is retained across outages."
+              p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+          PY
+
+          python3 -m compileall -q custom_components/castncasa
+          git diff --check
+
+      - name: Verify CastnCasa 1.0.25 release state
         run: |
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           manifest = json.loads(Path("custom_components/castncasa/manifest.json").read_text())
-          if manifest.get("version") != "1.0.24":
+          if manifest.get("version") != "1.0.25":
               raise SystemExit(f"Unexpected manifest version: {manifest.get('version')}")
-
           const = Path("custom_components/castncasa/const.py").read_text()
-          if 'INTEGRATION_VERSION = "1.0.24"' not in const:
-              raise SystemExit("const.py is not at 1.0.24")
-
-          schedule = Path("custom_components/castncasa/schedule.py").read_text()
-          for marker in (
-              "PROFILE_HISTORY_BASELINE",
-              "_merge_profile_history",
-              "_profile_for_day",
-              '"profile_history": profile_history',
-          ):
-              if marker not in schedule:
-                  raise SystemExit(f"Profile history marker is missing: {marker}")
-
-          heat = Path("custom_components/castncasa/heat.py").read_text()
-          if "effective_reheat_lead_minutes" not in heat:
-              raise SystemExit("Adaptive reheating lead support is missing")
-
+          if 'INTEGRATION_VERSION = "1.0.25"' not in const:
+              raise SystemExit("const.py is not at 1.0.25")
           learning = Path("custom_components/castncasa/learning.py").read_text()
           for marker in (
-              "LEARNING_MIN_CYCLES = 3",
-              "LEARNING_AUTO_APPLY_CYCLES = 5",
-              "HeatLearningManager",
-              "required_minutes",
+              "target_temp_entity",
+              "reduced_target_temp_entity",
+              "last_valid_heating_value",
+              "_refresh_heating_targets",
           ):
               if marker not in learning:
-                  raise SystemExit(f"Heat learning marker is missing: {marker}")
-
-          coordinator = Path("custom_components/castncasa/coordinator.py").read_text()
-          if '"heat_learning" in current_data' not in coordinator:
-              raise SystemExit("Coordinator does not preserve Heat learning state")
+                  raise SystemExit(f"Live heating target marker missing: {marker}")
           PY
-          python3 -m compileall -q custom_components/castncasa
-          git diff --check
 
-      - name: Create GitHub release v1.0.24
+      - name: Commit CastnCasa 1.0.25 code
+        run: |
+          if git diff --quiet; then
+            echo "No code changes to commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add custom_components/castncasa
+            git commit -m "CastnCasa 1.0.25: use live heating target temperatures"
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release v1.0.25
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view v1.0.24 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.0.24 already exists."
+          TARGET="$(git rev-parse HEAD)"
+          if gh release view v1.0.25 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.25 already exists."
             exit 0
           fi
-          TARGET="$(git rev-parse HEAD)"
-          gh release create v1.0.24 \
+          gh release create v1.0.25 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "CastnCasa Home Assistant 1.0.24" \
-            --notes "Preserves historical shift profile values when travel times, shift start/end times, or other profile settings are changed later. Existing calendar days keep the profile definition that applied before the change, while the new definition applies from the change date onward. Existing installations migrate automatically on the next schedule sync; the mobile API remains backward-compatible and does not expose internal profile history."
+            --title "CastnCasa Home Assistant 1.0.25" \
+            --notes "CastnCasa Heat can now read the comfort and reduced room target temperatures directly from Home Assistant heating number entities. The learning target follows the live comfort setting automatically. Short heating-entity outages use the last valid value; the configured numeric target remains only as a final fallback."
