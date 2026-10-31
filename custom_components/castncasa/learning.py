@@ -218,11 +218,15 @@ class HeatLearningManager:
         return state.state == "on"
 
     def _valid_cycles(self) -> list[dict[str, Any]]:
+        current_target = self.target_temp
         return [
             cycle
             for cycle in self._cycles
             if isinstance(cycle.get("required_minutes"), (int, float))
             and cycle.get("valid", True)
+            and isinstance(cycle.get("target_temp"), (int, float))
+            and abs(float(cycle["target_temp"]) - current_target)
+            <= LEARNING_TARGET_TOLERANCE
         ]
 
     def _prediction(self) -> int | None:
@@ -396,6 +400,14 @@ class HeatLearningManager:
         now = dt_util.now()
         if self._refresh_heating_targets():
             self.hass.async_create_task(self._async_save())
+        if self._active is not None:
+            active_target = self._active.get("target_temp")
+            if (
+                isinstance(active_target, (int, float))
+                and abs(float(active_target) - self.target_temp)
+                > LEARNING_TARGET_TOLERANCE
+            ):
+                self._discard_active("target_temperature_changed", now)
         household = self.coordinator.data.get("household", {})
 
         if not self.enabled or not self._sources_ready():
