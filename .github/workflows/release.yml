@@ -1,4 +1,4 @@
-name: Release CastnCasa Home Assistant 1.0.26
+name: Release CastnCasa Home Assistant 1.0.27
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply target-specific learning
+      - name: Fix learning cycle forecast handoff
         run: |
           python3 - <<'PY'
           import json
@@ -28,32 +28,26 @@ jobs:
               p = Path(path)
               text = p.read_text()
               if old not in text:
-                  raise SystemExit(f"Marker missing in {path}: {old[:100]!r}")
+                  raise SystemExit(f"Marker missing in {path}: {old[:120]!r}")
               p.write_text(text.replace(old, new, 1))
 
           replace(
               "custom_components/castncasa/const.py",
-              'INTEGRATION_VERSION = "1.0.25"',
               'INTEGRATION_VERSION = "1.0.26"',
+              'INTEGRATION_VERSION = "1.0.27"',
           )
 
           replace(
               "custom_components/castncasa/learning.py",
-              '''    def _valid_cycles(self) -> list[dict[str, Any]]:\n        return [\n            cycle\n            for cycle in self._cycles\n            if isinstance(cycle.get("required_minutes"), (int, float))\n            and cycle.get("valid", True)\n        ]\n''',
-              '''    def _valid_cycles(self) -> list[dict[str, Any]]:\n        current_target = self.target_temp\n        return [\n            cycle\n            for cycle in self._cycles\n            if isinstance(cycle.get("required_minutes"), (int, float))\n            and cycle.get("valid", True)\n            and isinstance(cycle.get("target_temp"), (int, float))\n            and abs(float(cycle["target_temp"]) - current_target)\n            <= LEARNING_TARGET_TOLERANCE\n        ]\n''',
-          )
-
-          replace(
-              "custom_components/castncasa/learning.py",
-              '''        if self._refresh_heating_targets():\n            self.hass.async_create_task(self._async_save())\n        household = self.coordinator.data.get("household", {})\n''',
-              '''        if self._refresh_heating_targets():\n            self.hass.async_create_task(self._async_save())\n        if self._active is not None:\n            active_target = self._active.get("target_temp")\n            if (\n                isinstance(active_target, (int, float))\n                and abs(float(active_target) - self.target_temp)\n                > LEARNING_TARGET_TOLERANCE\n            ):\n                self._discard_active("target_temperature_changed", now)\n        household = self.coordinator.data.get("household", {})\n''',
+              '''        if self._active is not None:\n            active_key = self._active.get("cycle_key")\n            if cycle_key is not None and active_key not in {None, cycle_key}:\n                self._discard_active("forecast_changed", now)\n''',
+              '''        if self._active is not None:\n            active_key = self._active.get("cycle_key")\n            active_expected_home_raw = self._active.get("expected_home")\n            active_expected_home = (\n                datetime.fromisoformat(str(active_expected_home_raw))\n                if active_expected_home_raw\n                else None\n            )\n            if (\n                cycle_key is not None\n                and active_key not in {None, cycle_key}\n                and (active_expected_home is None or now < active_expected_home)\n            ):\n                self._discard_active("forecast_changed", now)\n''',
           )
 
           manifest_path = Path("custom_components/castncasa/manifest.json")
           manifest = json.loads(manifest_path.read_text())
-          if manifest.get("version") != "1.0.25":
+          if manifest.get("version") != "1.0.26":
               raise SystemExit(f"Unexpected starting version: {manifest.get('version')}")
-          manifest["version"] = "1.0.26"
+          manifest["version"] = "1.0.27"
           manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
           PY
 
@@ -65,30 +59,32 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+
           manifest = json.loads(Path("custom_components/castncasa/manifest.json").read_text())
-          assert manifest["version"] == "1.0.26"
+          assert manifest["version"] == "1.0.27"
           const = Path("custom_components/castncasa/const.py").read_text()
-          assert 'INTEGRATION_VERSION = "1.0.26"' in const
+          assert 'INTEGRATION_VERSION = "1.0.27"' in const
           learning = Path("custom_components/castncasa/learning.py").read_text()
-          assert 'abs(float(cycle["target_temp"]) - current_target)' in learning
-          assert 'target_temperature_changed' in learning
+          assert 'active_expected_home_raw = self._active.get("expected_home")' in learning
+          assert 'and (active_expected_home is None or now < active_expected_home)' in learning
+          assert 'self._discard_active("forecast_changed", now)' in learning
           PY
 
-      - name: Commit CastnCasa 1.0.26 code
+      - name: Commit CastnCasa 1.0.27 code
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add custom_components/castncasa
-          git commit -m "CastnCasa 1.0.26: separate learning by comfort target"
+          git commit -m "CastnCasa 1.0.27: keep learning cycle across forecast handoff"
           git push origin HEAD:main
 
-      - name: Create GitHub release v1.0.26
+      - name: Create GitHub release v1.0.27
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TARGET="$(git rev-parse HEAD)"
-          gh release create v1.0.26 \
+          gh release create v1.0.27 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET" \
-            --title "CastnCasa Home Assistant 1.0.26" \
-            --notes "Adaptive reheating learning is now separated by the live comfort target temperature. Cycles learned at 22 °C no longer influence predictions at 23 °C, but remain stored and become usable again if the same target is selected later. An active learning cycle is discarded and safely restarted when the comfort target changes during that cycle."
+            --title "CastnCasa Home Assistant 1.0.27" \
+            --notes "Fixes adaptive reheating learning at the planned homecoming boundary. A running cycle is no longer discarded just because the forecast advances to the next absence window when the expected return time is reached. Genuine forecast changes before the original expected return still invalidate the sample. The active cycle can now finish normally by target temperature, real arrival, or timeout."
