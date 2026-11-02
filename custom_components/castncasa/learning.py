@@ -435,7 +435,17 @@ class HeatLearningManager:
 
         if self._active is not None:
             active_key = self._active.get("cycle_key")
-            if cycle_key is not None and active_key not in {None, cycle_key}:
+            active_expected_home_raw = self._active.get("expected_home")
+            active_expected_home = (
+                datetime.fromisoformat(str(active_expected_home_raw))
+                if active_expected_home_raw
+                else None
+            )
+            if (
+                cycle_key is not None
+                and active_key not in {None, cycle_key}
+                and (active_expected_home is None or now < active_expected_home)
+            ):
                 self._discard_active("forecast_changed", now)
 
         if self._active is not None:
