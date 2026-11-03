@@ -1,0 +1,80 @@
+blueprint:
+  name: "CastnCasa: Aktionen nach Heat-Modus"
+  description: >
+    Führt eigene Home-Assistant-Aktionen aus, wenn CastnCasa Heat zwischen
+    komfort, reduziert und wiederaufheizen wechselt. CastnCasa steuert dabei
+    keine Heizung selbst; die konkreten Aktionen werden beim Erstellen der
+    Automation ausgewählt.
+  domain: automation
+  author: "CastnCasa / WATTZAHLS.DE"
+  source_url: https://github.com/123trs/castncasa-home-assistant/blob/main/blueprints/automation/123trs/castncasa_heat_mode_actions.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    castncasa:
+      name: CastnCasa
+      icon: mdi:home-clock-outline
+      input:
+        heat_mode_sensor:
+          name: Empfohlener Heat-Modus
+          description: >
+            Wähle den CastnCasa-Sensor, dessen Zustand komfort, reduziert oder
+            wiederaufheizen ist.
+          selector:
+            entity:
+              domain: sensor
+              integration: castncasa
+    actions:
+      name: Eigene Aktionen
+      icon: mdi:play-circle-outline
+      input:
+        comfort_actions:
+          name: Bei Komfort
+          description: Aktionen, wenn CastnCasa Heat "komfort" empfiehlt.
+          default: []
+          selector:
+            action: {}
+        reduced_actions:
+          name: Bei Reduziert
+          description: Aktionen, wenn CastnCasa Heat "reduziert" empfiehlt.
+          default: []
+          selector:
+            action: {}
+        reheat_actions:
+          name: Beim Wiederaufheizen
+          description: Aktionen, wenn CastnCasa Heat "wiederaufheizen" empfiehlt.
+          default: []
+          selector:
+            action: {}
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input heat_mode_sensor
+    to: "komfort"
+    id: comfort
+  - trigger: state
+    entity_id: !input heat_mode_sensor
+    to: "reduziert"
+    id: reduced
+  - trigger: state
+    entity_id: !input heat_mode_sensor
+    to: "wiederaufheizen"
+    id: reheat
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: comfort
+        sequence: !input comfort_actions
+      - conditions:
+          - condition: trigger
+            id: reduced
+        sequence: !input reduced_actions
+      - conditions:
+          - condition: trigger
+            id: reheat
+        sequence: !input reheat_actions
