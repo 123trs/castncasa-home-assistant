@@ -1,0 +1,69 @@
+blueprint:
+  name: "CastnCasa: Aktionen bei effektiv leer / bewohnt"
+  description: >
+    Führt eigene Aktionen aus, wenn CastnCasa den Haushalt als effektiv leer
+    oder wieder bewohnt meldet. Die effektive Leer-Erkennung berücksichtigt
+    die reale Anwesenheit; eine reine Dienstplan-Prognose schaltet damit nicht
+    eigenständig Geräte.
+  domain: automation
+  author: "CastnCasa / WATTZAHLS.DE"
+  source_url: https://github.com/123trs/castncasa-home-assistant/blob/main/blueprints/automation/123trs/castncasa_effective_empty_actions.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    castncasa:
+      name: CastnCasa
+      icon: mdi:home-account
+      input:
+        effective_empty_sensor:
+          name: Haushalt effektiv leer
+          description: >
+            Wähle den CastnCasa-Binary-Sensor "Haushalt effektiv leer".
+          selector:
+            entity:
+              domain: binary_sensor
+              integration: castncasa
+    actions:
+      name: Eigene Aktionen
+      icon: mdi:play-circle-outline
+      input:
+        empty_actions:
+          name: Wenn das Haus effektiv leer wird
+          description: >
+            Zum Beispiel Staubsauger starten, Alarmmodus aktivieren oder
+            nichtkritische Verbraucher anpassen.
+          default: []
+          selector:
+            action: {}
+        occupied_actions:
+          name: Wenn wieder jemand zuhause ist
+          description: >
+            Aktionen, sobald CastnCasa den Haushalt nicht mehr als effektiv
+            leer meldet.
+          default: []
+          selector:
+            action: {}
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input effective_empty_sensor
+    to: "on"
+    id: empty
+  - trigger: state
+    entity_id: !input effective_empty_sensor
+    to: "off"
+    id: occupied
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: empty
+        sequence: !input empty_actions
+      - conditions:
+          - condition: trigger
+            id: occupied
+        sequence: !input occupied_actions
