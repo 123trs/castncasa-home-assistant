@@ -2,17 +2,20 @@
 
 <p align="center"><img src="custom_components/castncasa/brand/logo.png" alt="CastnCasa" width="512"></p>
 
-**CastnCasa is the shift and presence calendar for Home Assistant.** The Android app combines an easy-to-use monthly shift calendar with direct Home Assistant synchronization, resident presence and absence forecasts, and data that can be used for smart heating and other automations.
+**CastnCasa gives Home Assistant a view of what happens next.** Home Assistant already knows who is home now; CastnCasa adds when the household is expected to become empty, when someone should return, and how that forecast compares with actual presence.
+
+The Android shift calendar is a convenient way to enter changing schedules, but the real Home Assistant value is **predictive presence**: automations can plan ahead instead of reacting only after everybody has left.
 
 **One-time purchase. No subscription. No CastnCasa cloud required for household schedule or presence data.**
 
-Instead of treating the calendar as an isolated planner, CastnCasa turns it into useful Home Assistant data: when someone is expected to leave, when the household will probably be empty, and when a resident is expected back home. Actual presence always has priority over the schedule forecast.
+A real example: a heating schedule may switch from reduced to comfort at 04:00 even though everybody is scheduled to leave at 05:30. CastnCasa can expose that upcoming empty period before it starts. An automation can keep an already active reduction in place when the comfort phase would be too short, then resume normal heating before the expected return. Actual presence always has priority over the schedule forecast.
 
 Typical use cases include:
 
 - reduce heating during longer planned absences and start reheating before the expected return,
 - avoid briefly reheating an already reduced house when another useful empty period is about to begin,
 - use upcoming departures and returns in Home Assistant automations,
+- start vacuuming or other non-critical routines when the home is effectively empty,
 - combine several residents into one household absence forecast,
 - keep shift and presence data local between the Android app and Home Assistant.
 
@@ -30,6 +33,15 @@ The Heat settings are:
 - **Reheat lead time**: when normal reheating should start before the expected return.
 - **Comfort buffer**: additional safety time before the expected return.
 - **Minimum comfort period**: minimum useful occupied period before an already reduced heating system should be brought back to comfort.
+
+## Ready-to-use blueprints
+
+Two reusable automation blueprints are included so the forecast can be used without manually wiring every state transition:
+
+- **[CastnCasa: Aktionen nach Heat-Modus](blueprints/automation/123trs/castncasa_heat_mode_actions.yaml)** — runs user-selected actions when Heat changes between `komfort`, `reduziert` and `wiederaufheizen`.
+- **[CastnCasa: Aktionen bei effektiv leer / bewohnt](blueprints/automation/123trs/castncasa_effective_empty_actions.yaml)** — runs user-selected actions when the household becomes effectively empty or occupied again.
+
+Both blueprints deliberately contain **no hard-coded heating or device commands**. CastnCasa supplies the forecast; the user decides what Home Assistant should do.
 
 ## Installation with HACS
 
